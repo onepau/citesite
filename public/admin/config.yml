@@ -1,0 +1,32 @@
+backend:
+  name: github
+  repo: onepau/citesite
+  branch: main
+
+media_folder: "public/images/blog"
+public_folder: "/images/blog"
+
+collections:
+  - name: "blog"
+    label: "Blog Posts"
+    folder: "content/blog"
+    create: true
+    slug: "{{slug}}"
+    fields:
+      - { label: "Title", name: "title", widget: "string" }
+      - { label: "Publish Date", name: "date", widget: "datetime" }
+      - label: "Category"
+        name: "category"
+        widget: "select"
+        options:
+          - "GEO Fundamentals"
+          - "Technical Guide"
+          - "Structured Data"
+          - "Strategy"
+          - "Case Study"
+          - "Algorithm Updates"
+          - "Tools & Resources"
+      - { label: "Excerpt", name: "excerpt", widget: "text" }
+      - { label: "Read Time", name: "readTime", widget: "string", default: "5 min" }
+      - { label: "Featured", name: "featured", widget: "boolean", default: false }
+      - { label: "Body", name: "body", widget: "markdown" }
