@@ -1,23 +1,306 @@
-import { useState } from "react";
-import {
-  Search, Lock, CheckCircle, AlertTriangle, XCircle,
-  ChevronRight, Mail, CreditCard, X, BookOpen, ArrowRight,
-  BarChart3, Shield, FileText, Globe, Eye, Zap, Menu,
-  ChevronDown, Star, TrendingUp, ExternalLink,
-} from "lucide-react";
-import {
-  RadarChart, Radar, PolarGrid, PolarAngleAxis,
-  PolarRadiusAxis, ResponsiveContainer,
-} from "recharts";
+import { useState, useEffect, useMemo } from "react";
+import { Search, Lock, CheckCircle, AlertTriangle, XCircle, ChevronRight, Mail, CreditCard, X, BookOpen, ArrowRight, BarChart3, Shield, FileText, Globe, Eye, Zap, Menu, ChevronDown, Star, TrendingUp, ExternalLink } from "lucide-react";
+import { RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from "recharts";
 
-import { AUDIT_DIMENSIONS } from "./config/auditEngine.js";
-import { BLOG_POSTS } from "./config/blogPosts.js";
-import {
-  generateScores, getOverallScore, getScoreColor, getScoreLabel,
-} from "./utils/scoring.js";
+/* ═══════════════════════════════════════════════════════════════════
+   AUDIT ENGINE CONFIGURATION
+   ───────────────────────────────────────────────────────────────────
+   This is the single source of truth for all audit criteria.
+   To update the engine:
+   - Add/remove/reorder items in AUDIT_DIMENSIONS
+   - Adjust weights (must sum to 1.0)
+   - Change tier to 'free' or 'paid' to control visibility
+   - Update scoring bands, checks, and recommendation templates
+   - Each check has: id, name, description, maxPoints, tier
+   ═══════════════════════════════════════════════════════════════════ */
+
+const AUDIT_DIMENSIONS = [
+  {
+    id: "crawlability",
+    dimension: "A",
+    name: "Crawlability & Retrievability",
+    shortName: "Crawlability",
+    weight: 0.20,
+    tier: "free",
+    icon: "Globe",
+    description: "SSR vs CSR, robots.txt directives (including AI-bot rules for GPTBot, ClaudeBot, PerplexityBot, Google-Extended, CCBot), sitemap, canonical, response codes, llms.txt, HTTPS, mobile rendering.",
+    scoringBands: [
+      { min: 0, max: 30, label: "Critical", desc: "AI bots see empty or broken content" },
+      { min: 31, max: 60, label: "Needs Work", desc: "Crawlable with friction" },
+      { min: 61, max: 85, label: "Good", desc: "Cleanly crawlable" },
+      { min: 86, max: 100, label: "Excellent", desc: "Cleanly crawlable with explicit AI-bot allowances and llms.txt support" },
+    ],
+    checks: [
+      { id: "ssr-csr", name: "Server-side rendering", description: "Page returns substantive HTML to non-JS crawlers", maxPoints: 20, tier: "free" },
+      { id: "robots-ai", name: "AI bot directives", description: "robots.txt rules for GPTBot, ClaudeBot, PerplexityBot, Google-Extended, CCBot", maxPoints: 20, tier: "paid" },
+      { id: "sitemap", name: "XML Sitemap", description: "Valid sitemap.xml present and referenced in robots.txt", maxPoints: 15, tier: "free" },
+      { id: "canonical", name: "Canonical tag", description: "Self-referencing canonical URL present", maxPoints: 10, tier: "free" },
+      { id: "llms-txt", name: "llms.txt support", description: "Presence of /llms.txt and/or /llms-full.txt", maxPoints: 15, tier: "paid" },
+      { id: "https", name: "HTTPS", description: "Served over HTTPS with valid certificate", maxPoints: 10, tier: "free" },
+      { id: "mobile", name: "Mobile rendering", description: "Mobile viewport meta tag and responsive rendering", maxPoints: 10, tier: "free" },
+    ],
+    recommendations: [
+      "Implement server-side rendering (SSR) or static site generation (SSG) to ensure AI crawlers receive full HTML content.",
+      "Add explicit AI-bot allow rules to robots.txt for GPTBot, ClaudeBot, PerplexityBot.",
+      "Create and maintain an /llms.txt file describing your site's purpose, key content areas, and preferred citation format.",
+    ]
+  },
+  {
+    id: "content-structure",
+    dimension: "B",
+    name: "Content Structure & Passage Retrievability",
+    shortName: "Content Structure",
+    weight: 0.20,
+    tier: "free",
+    icon: "FileText",
+    description: "Semantic HTML, heading hierarchy, self-contained paragraphs, definitional opening sentence, lists, tables, Q&A blocks, chunk-level answerability for passage retrieval.",
+    scoringBands: [
+      { min: 0, max: 30, label: "Critical", desc: "Wall of text, no structure" },
+      { min: 31, max: 60, label: "Needs Work", desc: "Some structure but weak chunk answerability" },
+      { min: 61, max: 85, label: "Good", desc: "Well-structured, answer-ready" },
+      { min: 86, max: 100, label: "Excellent", desc: "Purpose-built for passage retrieval" },
+    ],
+    checks: [
+      { id: "semantic-html", name: "Semantic HTML", description: "Uses article, section, nav, aside, header, footer correctly", maxPoints: 15, tier: "free" },
+      { id: "heading-hierarchy", name: "Heading hierarchy", description: "Logical H1→H6 nesting without skips", maxPoints: 15, tier: "free" },
+      { id: "self-contained", name: "Self-contained paragraphs", description: "Paragraphs are independently meaningful without surrounding context", maxPoints: 20, tier: "paid" },
+      { id: "definitional", name: "Definitional opening", description: "Key sections begin with a clear, citable definition sentence", maxPoints: 20, tier: "paid" },
+      { id: "qa-blocks", name: "Q&A / FAQ blocks", description: "Presence of question-and-answer formatted content", maxPoints: 15, tier: "paid" },
+      { id: "lists-tables", name: "Lists & tables", description: "Structured data presented in scannable list or table format", maxPoints: 15, tier: "free" },
+    ],
+    recommendations: [
+      "Begin each major section with a definitional sentence that directly answers 'What is [topic]?'",
+      "Break long paragraphs into self-contained chunks that can be extracted as standalone passages.",
+      "Add FAQ sections using Q&A format with corresponding FAQPage schema markup.",
+    ]
+  },
+  {
+    id: "structured-data",
+    dimension: "C",
+    name: "Structured Data & Machine-Readable Signals",
+    shortName: "Structured Data",
+    weight: 0.15,
+    tier: "paid",
+    icon: "BarChart3",
+    description: "JSON-LD @type(s) and relevance, required and recommended properties, @graph for multiple types, Schema.org validity, author, publisher, datePublished, dateModified, sameAs, mentions, Open Graph, Twitter Card.",
+    scoringBands: [
+      { min: 0, max: 30, label: "Critical", desc: "None or broken" },
+      { min: 31, max: 60, label: "Needs Work", desc: "Present but incomplete" },
+      { min: 61, max: 85, label: "Good", desc: "Valid and appropriate" },
+      { min: 86, max: 100, label: "Excellent", desc: "Comprehensive multi-type graph with full E-E-A-T signalling" },
+    ],
+    checks: [
+      { id: "jsonld-present", name: "JSON-LD present", description: "At least one valid JSON-LD block in page source", maxPoints: 15, tier: "free" },
+      { id: "jsonld-types", name: "Appropriate @types", description: "Schema types match content type (Article, Product, FAQPage, etc.)", maxPoints: 20, tier: "paid" },
+      { id: "jsonld-graph", name: "@graph structure", description: "Multiple related types linked via @graph", maxPoints: 15, tier: "paid" },
+      { id: "eeat-props", name: "E-E-A-T properties", description: "author, publisher, datePublished, dateModified, sameAs present", maxPoints: 20, tier: "paid" },
+      { id: "og-tags", name: "Open Graph tags", description: "Complete OG metadata for social sharing", maxPoints: 15, tier: "free" },
+      { id: "twitter-card", name: "Twitter/X Card", description: "Twitter card meta tags present", maxPoints: 15, tier: "free" },
+    ],
+    recommendations: [
+      "Implement JSON-LD @graph combining Article/WebPage, Person (author), and Organization (publisher) types.",
+      "Add datePublished and dateModified to signal content freshness to AI systems.",
+      "Include sameAs links pointing to authoritative profiles (LinkedIn, official bios, ORCID).",
+    ]
+  },
+  {
+    id: "eeat",
+    dimension: "D",
+    name: "E-E-A-T & Citability Signals",
+    shortName: "E-E-A-T",
+    weight: 0.15,
+    tier: "paid",
+    icon: "Shield",
+    description: "Named author with bio and credentials, Person and Organization schema, outbound citations to primary sources, original data, about/contact pages, sameAs links, reviews and press mentions.",
+    scoringBands: [
+      { min: 0, max: 30, label: "Critical", desc: "Anonymous, no sourcing" },
+      { min: 31, max: 60, label: "Needs Work", desc: "Some attribution" },
+      { min: 61, max: 85, label: "Good", desc: "Clear authorship and sourcing" },
+      { min: 86, max: 100, label: "Excellent", desc: "Fully verifiable expertise with linked credentials" },
+    ],
+    checks: [
+      { id: "named-author", name: "Named author", description: "Content attributed to a named individual with visible bio", maxPoints: 20, tier: "paid" },
+      { id: "author-schema", name: "Author schema", description: "Person schema with credentials, sameAs, and expertise signals", maxPoints: 20, tier: "paid" },
+      { id: "outbound-citations", name: "Outbound citations", description: "Links to primary sources, studies, or authoritative references", maxPoints: 20, tier: "paid" },
+      { id: "original-data", name: "Original data/experience", description: "Evidence of primary research or first-hand experience", maxPoints: 20, tier: "paid" },
+      { id: "about-contact", name: "About & Contact pages", description: "Discoverable about and contact pages linked from content", maxPoints: 20, tier: "paid" },
+    ],
+    recommendations: [
+      "Add a visible author bio with credentials, headshot, and links to authoritative profiles.",
+      "Cite primary sources (studies, reports, official documentation) rather than secondary aggregators.",
+      "Create a comprehensive About page with Organization schema, including founding date, team, and press mentions.",
+    ]
+  },
+  {
+    id: "content-quality",
+    dimension: "E",
+    name: "Content Quality & Topical Completeness",
+    shortName: "Content Quality",
+    weight: 0.15,
+    tier: "paid",
+    icon: "Star",
+    description: "Depth relative to query intent, coverage of adjacent entities and follow-up questions, originality vs. commodity content, freshness, evidence of primary research.",
+    scoringBands: [
+      { min: 0, max: 30, label: "Critical", desc: "Thin or duplicative" },
+      { min: 31, max: 60, label: "Needs Work", desc: "Adequate but generic" },
+      { min: 61, max: 85, label: "Good", desc: "Comprehensive and substantive" },
+      { min: 86, max: 100, label: "Excellent", desc: "Original, authoritative, definitional for the query" },
+    ],
+    checks: [
+      { id: "depth", name: "Content depth", description: "Sufficient depth relative to likely query intent", maxPoints: 25, tier: "paid" },
+      { id: "adjacent-entities", name: "Adjacent entity coverage", description: "Covers related topics and likely follow-up questions", maxPoints: 20, tier: "paid" },
+      { id: "originality", name: "Originality", description: "Original perspective, data, or insight vs. commodity content", maxPoints: 25, tier: "paid" },
+      { id: "freshness", name: "Freshness signals", description: "Evidence of recent updates and content maintenance", maxPoints: 15, tier: "paid" },
+      { id: "primary-research", name: "Primary research", description: "First-hand data, case studies, or experiential evidence", maxPoints: 15, tier: "paid" },
+    ],
+    recommendations: [
+      "Address the top 3-5 follow-up questions a reader would naturally ask after consuming your content.",
+      "Add original data points, case studies, or first-hand observations that cannot be found elsewhere.",
+      "Display visible last-updated dates and maintain a regular content refresh cadence.",
+    ]
+  },
+  {
+    id: "technical-seo",
+    dimension: "F",
+    name: "On-Page Technical SEO",
+    shortName: "Technical SEO",
+    weight: 0.15,
+    tier: "free",
+    icon: "Zap",
+    description: "Title tag, meta description, H1, image alt text, internal linking, URL structure, Core Web Vitals signals, mobile viewport tag.",
+    scoringBands: [
+      { min: 0, max: 30, label: "Critical", desc: "Multiple fundamentals missing" },
+      { min: 31, max: 60, label: "Needs Work", desc: "Basics covered but weak" },
+      { min: 61, max: 85, label: "Good", desc: "Well-executed" },
+      { min: 86, max: 100, label: "Excellent", desc: "Polished across all fundamentals" },
+    ],
+    checks: [
+      { id: "title-tag", name: "Title tag", description: "Unique, descriptive title under 60 characters", maxPoints: 15, tier: "free" },
+      { id: "meta-desc", name: "Meta description", description: "Compelling meta description under 160 characters", maxPoints: 15, tier: "free" },
+      { id: "h1", name: "H1 tag", description: "Single, descriptive H1 matching page intent", maxPoints: 10, tier: "free" },
+      { id: "img-alt", name: "Image alt text", description: "All content images have descriptive alt attributes", maxPoints: 15, tier: "free" },
+      { id: "internal-links", name: "Internal linking", description: "Contextual internal links to related content", maxPoints: 15, tier: "paid" },
+      { id: "url-structure", name: "URL structure", description: "Clean, descriptive, hyphenated URL slug", maxPoints: 15, tier: "free" },
+      { id: "cwv", name: "Core Web Vitals", description: "Visible performance signals (no render-blocking, lazy loading, etc.)", maxPoints: 15, tier: "paid" },
+    ],
+    recommendations: [
+      "Craft title tags that include the primary keyword within the first 30 characters.",
+      "Add descriptive alt text to all images — describe content, not just 'image of...'.",
+      "Implement lazy loading for below-fold images and defer non-critical JavaScript.",
+    ]
+  },
+];
+
+/* ═══════════════════════════════════════════════════════════════════
+   BLOG POSTS — Replace with Decap CMS in production
+   ═══════════════════════════════════════════════════════════════════ */
+const BLOG_POSTS = [
+  {
+    id: 1,
+    slug: "what-is-geo",
+    title: "What Is Generative Engine Optimisation (GEO)?",
+    excerpt: "GEO is the practice of optimising your content to be cited by AI-powered search engines and large language models. Here's what you need to know.",
+    category: "GEO Fundamentals",
+    date: "2026-04-20",
+    readTime: "8 min",
+    featured: true,
+  },
+  {
+    id: 2,
+    slug: "llms-txt-guide",
+    title: "The Complete Guide to llms.txt",
+    excerpt: "How to create and maintain an llms.txt file that helps AI systems understand and correctly cite your website content.",
+    category: "Technical Guide",
+    date: "2026-04-15",
+    readTime: "6 min",
+    featured: false,
+  },
+  {
+    id: 3,
+    slug: "json-ld-eeat",
+    title: "JSON-LD Structured Data for E-E-A-T Signals",
+    excerpt: "A practical walkthrough of building a comprehensive JSON-LD @graph that communicates expertise, authority, and trust to AI systems.",
+    category: "Structured Data",
+    date: "2026-04-10",
+    readTime: "10 min",
+    featured: true,
+  },
+  {
+    id: 4,
+    slug: "seo-vs-geo",
+    title: "SEO vs GEO: What's Changed and What Hasn't",
+    excerpt: "Traditional SEO isn't dead — but the rules are evolving. Understanding where SEO ends and GEO begins is crucial for modern visibility.",
+    category: "Strategy",
+    date: "2026-04-05",
+    readTime: "7 min",
+    featured: false,
+  },
+];
+
+/* ═══════════════════════════════════════════════════════════════════
+   UTILITY FUNCTIONS
+   ═══════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════════
+   API CONFIGURATION
+   ───────────────────────────────────────────────────────────────────
+   Public audits call the Worker directly (free-tier results).
+   Admin audits call /api/admin-audit (Pages Function, full results).
+   The admin route is protected by Cloudflare Access.
+   ═══════════════════════════════════════════════════════════════════ */
+const API_BASE = "https://citesite-api.onepau.workers.dev";
+
+const callAuditAPI = async (url, isAdmin = false) => {
+  const endpoint = isAdmin
+    ? "/api/admin-audit"
+    : `${API_BASE}/api/audit`;
+
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `API error: ${res.status}`);
+  }
+
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+
+  // Map API response to the shape the UI expects
+  return data.dimensions.map((dim) => {
+    const config = AUDIT_DIMENSIONS.find((d) => d.id === dim.id) || {};
+    return {
+      ...config,
+      ...dim,
+      checks: dim.checks.map((c) => {
+        const configCheck = (config.checks || []).find((cc) => cc.id === c.id) || {};
+        return { ...configCheck, ...c };
+      }),
+      recommendations: config.recommendations || [],
+    };
+  });
+};
+
+const getOverallScore = (dims) =>
+  Math.round(dims.reduce((s, d) => s + d.score * d.weight, 0));
+
+const getScoreColor = (score) => {
+  if (score >= 86) return "#10b981";
+  if (score >= 61) return "#3b82f6";
+  if (score >= 31) return "#f59e0b";
+  return "#ef4444";
+};
+
+const getScoreLabel = (score) => {
+  if (score >= 86) return "Excellent";
+  if (score >= 61) return "Good";
+  if (score >= 31) return "Needs Work";
+  return "Critical";
+};
 
 const IconMap = { Globe, FileText, BarChart3, Shield, Star, Zap };
-
 
 /* ═══════════════════════════════════════════════════════════════════
    COMPONENTS
@@ -184,25 +467,38 @@ const PaymentModal = ({ onClose, url }) => {
    MAIN APP
    ═══════════════════════════════════════════════════════════════════ */
 export default function App() {
-  const [page, setPage] = useState("home");
+  const [page, setPage] = useState(() => {
+    if (typeof window !== "undefined" && window.location.pathname === "/admin-audit") return "admin-audit";
+    return "home";
+  });
+  const [isAdmin, setIsAdmin] = useState(() => {
+    return typeof window !== "undefined" && window.location.pathname === "/admin-audit";
+  });
   const [url, setUrl] = useState("");
   const [auditUrl, setAuditUrl] = useState("");
   const [results, setResults] = useState(null);
   const [showPayment, setShowPayment] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [auditError, setAuditError] = useState(null);
   const [nlEmail, setNlEmail] = useState("");
   const [nlSent, setNlSent] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const runAudit = () => {
+  const runAudit = async () => {
     if (!url.trim()) return;
     setLoading(true);
+    setAuditError(null);
     setAuditUrl(url.trim());
-    setTimeout(() => {
-      setResults(generateScores(url.trim()));
+    try {
+      const data = await callAuditAPI(url.trim(), isAdmin);
+      setResults(data);
       setPage("results");
+    } catch (err) {
+      setAuditError(err.message);
+      setPage(isAdmin ? "admin-audit" : "home");
+    } finally {
       setLoading(false);
-    }, 2000);
+    }
   };
 
   const overall = results ? getOverallScore(results) : 0;
@@ -223,7 +519,7 @@ export default function App() {
       {/* NAV */}
       <nav className="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-lg border-b border-slate-800">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-          <button onClick={() => { setPage("home"); setResults(null); }}
+          <button onClick={() => { setPage(isAdmin ? "admin-audit" : "home"); setResults(null); }}
             className="flex items-center gap-2 text-white font-bold text-lg">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
               <Eye size={18} />
@@ -251,7 +547,7 @@ export default function App() {
       </nav>
 
       {/* HOME */}
-      {page === "home" && !loading && (
+      {page === "home" && !loading && !auditError && (
         <div>
           <section className="max-w-4xl mx-auto px-4 pt-20 pb-16 text-center">
             <div className="inline-block px-3 py-1 rounded-full bg-cyan-500/10 text-cyan-400 text-xs font-medium mb-6 border border-cyan-500/20">
@@ -338,7 +634,48 @@ export default function App() {
           <div className="w-16 h-16 rounded-full border-4 border-slate-700 border-t-cyan-500 animate-spin mx-auto mb-6" />
           <h2 className="text-xl font-bold text-white mb-2">Analysing your page…</h2>
           <p className="text-slate-400 text-sm">Fetching, inspecting, and scoring across 6 dimensions</p>
+          <p className="text-slate-500 text-xs mt-1">This usually takes 20-30 seconds</p>
           <p className="text-cyan-400 text-sm mt-2 font-mono truncate">{url}</p>
+        </div>
+      )}
+
+      {/* ERROR */}
+      {auditError && !loading && (page === "home" || page === "admin-audit") && (
+        <div className="max-w-md mx-auto px-4 pt-16 text-center">
+          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-6">
+            <XCircle size={32} className="text-red-400 mx-auto mb-3" />
+            <h3 className="text-white font-semibold mb-2">Audit failed</h3>
+            <p className="text-slate-400 text-sm mb-4">{auditError}</p>
+            <button onClick={() => setAuditError(null)}
+              className="bg-slate-700 text-white px-5 py-2 rounded-lg text-sm hover:bg-slate-600">Try again</button>
+          </div>
+        </div>
+      )}
+
+      {/* ADMIN AUDIT */}
+      {page === "admin-audit" && !loading && !auditError && (
+        <div>
+          <section className="max-w-4xl mx-auto px-4 pt-20 pb-16 text-center">
+            <div className="inline-block px-3 py-1 rounded-full bg-amber-500/10 text-amber-400 text-xs font-medium mb-6 border border-amber-500/20">
+              ADMIN — Full Audit Mode
+            </div>
+            <h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">
+              <span className="bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-transparent">Admin Audit</span>
+            </h1>
+            <p className="text-slate-400 text-lg mb-10 max-w-2xl mx-auto">
+              Full unfiltered results across all six dimensions. No paid tier restrictions.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 max-w-xl mx-auto">
+              <input type="url" value={url} onChange={e => setUrl(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && runAudit()}
+                className="flex-1 bg-slate-800 border border-amber-500/30 rounded-xl px-5 py-3.5 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 text-sm"
+                placeholder="Enter any URL to audit" />
+              <button onClick={runAudit}
+                className="bg-gradient-to-r from-amber-500 to-orange-600 text-white px-8 py-3.5 rounded-xl font-semibold hover:from-amber-400 hover:to-orange-500 transition-all flex items-center justify-center gap-2 whitespace-nowrap">
+                <Search size={18} /> Full Audit
+              </button>
+            </div>
+          </section>
         </div>
       )}
 
@@ -346,6 +683,7 @@ export default function App() {
       {page === "results" && results && !loading && (
         <div className="max-w-6xl mx-auto px-4 py-8">
           <div className="mb-6">
+            {isAdmin && <div className="inline-block px-3 py-1 rounded-full bg-amber-500/10 text-amber-400 text-xs font-medium mb-3 border border-amber-500/20">ADMIN — Full Results</div>}
             <p className="text-slate-400 text-sm mb-1">Audit results for</p>
             <p className="text-cyan-400 font-mono text-sm truncate">{auditUrl}</p>
           </div>
@@ -375,7 +713,7 @@ export default function App() {
           {/* DIMENSION CARDS */}
           <div className="grid md:grid-cols-2 gap-5 mb-8">
             {results.map(d => (
-              <DimensionCard key={d.id} dim={d} isPaid={false} onUnlock={() => setShowPayment(true)} />
+              <DimensionCard key={d.id} dim={d} isPaid={isAdmin} onUnlock={() => setShowPayment(true)} />
             ))}
           </div>
 
@@ -395,11 +733,11 @@ export default function App() {
             </div>
           </div>
 
-          {/* LOCKED FULL RECS */}
+          {/* FULL RECS — locked for public, open for admin */}
           <div className="relative bg-slate-800/80 rounded-xl border border-slate-700/50 p-6 mb-10">
-            <LockedOverlay onUnlock={() => setShowPayment(true)} />
+            {!isAdmin && <LockedOverlay onUnlock={() => setShowPayment(true)} />}
             <h3 className="text-lg font-bold text-white mb-4">Full Recommendations & Code Snippets</h3>
-            <div className="space-y-3 opacity-40">
+            <div className={`space-y-3 ${!isAdmin ? "opacity-40" : ""}`}>
               {results.map(d => d.recommendations.slice(1).map((r, i) => (
                 <div key={`${d.id}-${i}`} className="bg-slate-900/50 rounded-lg p-4">
                   <p className="text-white text-sm">{d.shortName}: {r}</p>

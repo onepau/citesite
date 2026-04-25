@@ -1,0 +1,11 @@
+name = "citesite-api"
+main = "index.js"
+compatibility_date = "2026-04-24"
+
+[vars]
+ANTHROPIC_MODEL = "claude-sonnet-4-20250514"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "citesite-db"
+database_id = "c3773f9a-5b71-4095-9b48-2131eea61eaf"

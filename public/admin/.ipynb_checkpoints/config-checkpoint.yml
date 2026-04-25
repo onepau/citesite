@@ -2,6 +2,7 @@ backend:
   name: github
   repo: onepau/citesite
   branch: main
+  base_url: https://citesite-oauth.onepau.workers.dev
 
 media_folder: "public/images/blog"
 public_folder: "/images/blog"

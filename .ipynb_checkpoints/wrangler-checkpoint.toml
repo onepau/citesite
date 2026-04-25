@@ -2,7 +2,7 @@
 # This file is used when deploying Workers (audit API, payments, newsletter).
 # Pages deployment is configured separately in the Cloudflare dashboard.
 
-name = "citesite-api"
+name = "citesite"
 main = "workers/audit-api/index.js"
 compatibility_date = "2026-04-24"
 
