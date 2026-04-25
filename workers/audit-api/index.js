@@ -9,6 +9,95 @@
    full results without payment.
    ═══════════════════════════════════════════════════════════════════ */
 
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   Add this JWT validation block to the TOP of your
+   workers/audit-api/index.js file, before the AUDIT_SYSTEM_PROMPT.
+   ═══════════════════════════════════════════════════════════════════ */
+
+async function validateAccessJWT(token, env) {
+  if (!token) return null;
+
+  try {
+    // Split JWT
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+
+    const [headerB64, payloadB64, signatureB64] = parts;
+
+    // Decode header to find key ID
+    const header = JSON.parse(atob(headerB64.replace(/-/g, "+").replace(/_/g, "/")));
+
+    // Fetch Cloudflare Access public keys
+    const certsUrl = `https://${env.CF_ACCESS_TEAM_DOMAIN}.cloudflareaccess.com/cdn-cgi/access/certs`;
+    const certsRes = await fetch(certsUrl);
+    if (!certsRes.ok) return null;
+    const { keys } = await certsRes.json();
+
+    // Find the matching key
+    const jwk = keys.find((k) => k.kid === header.kid);
+    if (!jwk) return null;
+
+    // Import the public key
+    const cryptoKey = await crypto.subtle.importKey(
+      "jwk",
+      jwk,
+      { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+      false,
+      ["verify"]
+    );
+
+    // Verify signature
+    const data = new TextEncoder().encode(`${headerB64}.${payloadB64}`);
+    const sigBuf = Uint8Array.from(
+      atob(signatureB64.replace(/-/g, "+").replace(/_/g, "/")),
+      (c) => c.charCodeAt(0)
+    );
+    const valid = await crypto.subtle.verify("RSASSA-PKCS1-v1_5", cryptoKey, sigBuf, data);
+    if (!valid) return null;
+
+    // Decode and check payload
+    const payload = JSON.parse(atob(payloadB64.replace(/-/g, "+").replace(/_/g, "/")));
+
+    // Check expiry
+    if (payload.exp && payload.exp < Date.now() / 1000) return null;
+
+    // Check audience matches our Access application
+    const aud = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
+    if (env.CF_ACCESS_AUD && !aud.includes(env.CF_ACCESS_AUD)) return null;
+
+    return payload; // Valid — return the decoded claims
+  } catch (e) {
+    console.error("JWT validation error:", e);
+    return null;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   Also update the CORS_HEADERS constant to allow the JWT header:
+   ═══════════════════════════════════════════════════════════════════ */
+
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, X-Admin-Key, Cf-Access-Jwt-Assertion",
+};
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   After deploying, set these environment variables:
+
+   npx wrangler secret put CF_ACCESS_TEAM_DOMAIN
+   # Enter your team name, e.g.: citesite
+
+   npx wrangler secret put CF_ACCESS_AUD
+   # Enter the Application Audience tag from Zero Trust dashboard
+   ═══════════════════════════════════════════════════════════════════ */
+
+
+
 const AUDIT_SYSTEM_PROMPT = `You are CiteSite's audit engine. You analyse web pages for SEO and Generative Engine Optimisation (GEO) readiness.
 
 STEP 1 — FETCH AND INSPECT
@@ -131,7 +220,7 @@ Respond ONLY with valid JSON matching this structure (no markdown, no preamble):
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, X-Admin-Key",
+  "Access-Control-Allow-Headers": "Content-Type, X-Admin-Key, Cf-Access-Jwt-Assertion"
 };
 
 async function fetchTargetPage(url) {
@@ -282,9 +371,16 @@ export default {
       });
     }
 
+
     const url = new URL(request.url);
     const isFullEndpoint = url.pathname === "/api/audit/full";
-    const isAdminRequest = request.headers.get("X-Admin-Key") === env.ADMIN_KEY;
+
+    // Check for admin access: either admin key header OR valid Cloudflare Access JWT
+    const adminKeyValid = request.headers.get("X-Admin-Key") === env.ADMIN_KEY;
+    const accessJWT = request.headers.get("Cf-Access-Jwt-Assertion");
+    const jwtPayload = accessJWT ? await validateAccessJWT(accessJWT, env) : null;
+    const isAdminRequest = adminKeyValid || jwtPayload !== null;
+
 
     let body;
     try {
