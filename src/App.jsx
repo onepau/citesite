@@ -1,17 +1,21 @@
-import { useState, useEffect, useMemo } from "react";
-import { Search, Lock, CheckCircle, AlertTriangle, XCircle, ChevronRight, Mail, CreditCard, X, BookOpen, ArrowRight, BarChart3, Shield, FileText, Globe, Eye, Zap, Menu, ChevronDown, Star, TrendingUp, ExternalLink } from "lucide-react";
-import { RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from "recharts";
+import { useState } from "react";
+import {
+  Search, Lock, CheckCircle, AlertTriangle, XCircle,
+  ChevronRight, Mail, CreditCard, X, ArrowRight,
+  BarChart3, Shield, FileText, Globe, Eye, Zap, Menu,
+  Star, TrendingUp,
+} from "lucide-react";
+import {
+  RadarChart, Radar, PolarGrid, PolarAngleAxis,
+  PolarRadiusAxis, ResponsiveContainer,
+} from "recharts";
 
 /* ═══════════════════════════════════════════════════════════════════
    AUDIT ENGINE CONFIGURATION
    ───────────────────────────────────────────────────────────────────
-   This is the single source of truth for all audit criteria.
-   To update the engine:
-   - Add/remove/reorder items in AUDIT_DIMENSIONS
-   - Adjust weights (must sum to 1.0)
-   - Change tier to 'free' or 'paid' to control visibility
-   - Update scoring bands, checks, and recommendation templates
-   - Each check has: id, name, description, maxPoints, tier
+   Single source of truth for all audit criteria.
+   To update: add/remove/reorder items, adjust weights (must sum to 1.0),
+   change tier to 'free' or 'paid', update scoring bands and recommendations.
    ═══════════════════════════════════════════════════════════════════ */
 
 const AUDIT_DIMENSIONS = [
@@ -43,7 +47,7 @@ const AUDIT_DIMENSIONS = [
       "Implement server-side rendering (SSR) or static site generation (SSG) to ensure AI crawlers receive full HTML content.",
       "Add explicit AI-bot allow rules to robots.txt for GPTBot, ClaudeBot, PerplexityBot.",
       "Create and maintain an /llms.txt file describing your site's purpose, key content areas, and preferred citation format.",
-    ]
+    ],
   },
   {
     id: "content-structure",
@@ -62,7 +66,7 @@ const AUDIT_DIMENSIONS = [
     ],
     checks: [
       { id: "semantic-html", name: "Semantic HTML", description: "Uses article, section, nav, aside, header, footer correctly", maxPoints: 15, tier: "free" },
-      { id: "heading-hierarchy", name: "Heading hierarchy", description: "Logical H1→H6 nesting without skips", maxPoints: 15, tier: "free" },
+      { id: "heading-hierarchy", name: "Heading hierarchy", description: "Logical H1-H6 nesting without skips", maxPoints: 15, tier: "free" },
       { id: "self-contained", name: "Self-contained paragraphs", description: "Paragraphs are independently meaningful without surrounding context", maxPoints: 20, tier: "paid" },
       { id: "definitional", name: "Definitional opening", description: "Key sections begin with a clear, citable definition sentence", maxPoints: 20, tier: "paid" },
       { id: "qa-blocks", name: "Q&A / FAQ blocks", description: "Presence of question-and-answer formatted content", maxPoints: 15, tier: "paid" },
@@ -72,7 +76,7 @@ const AUDIT_DIMENSIONS = [
       "Begin each major section with a definitional sentence that directly answers 'What is [topic]?'",
       "Break long paragraphs into self-contained chunks that can be extracted as standalone passages.",
       "Add FAQ sections using Q&A format with corresponding FAQPage schema markup.",
-    ]
+    ],
   },
   {
     id: "structured-data",
@@ -101,7 +105,7 @@ const AUDIT_DIMENSIONS = [
       "Implement JSON-LD @graph combining Article/WebPage, Person (author), and Organization (publisher) types.",
       "Add datePublished and dateModified to signal content freshness to AI systems.",
       "Include sameAs links pointing to authoritative profiles (LinkedIn, official bios, ORCID).",
-    ]
+    ],
   },
   {
     id: "eeat",
@@ -129,7 +133,7 @@ const AUDIT_DIMENSIONS = [
       "Add a visible author bio with credentials, headshot, and links to authoritative profiles.",
       "Cite primary sources (studies, reports, official documentation) rather than secondary aggregators.",
       "Create a comprehensive About page with Organization schema, including founding date, team, and press mentions.",
-    ]
+    ],
   },
   {
     id: "content-quality",
@@ -157,7 +161,7 @@ const AUDIT_DIMENSIONS = [
       "Address the top 3-5 follow-up questions a reader would naturally ask after consuming your content.",
       "Add original data points, case studies, or first-hand observations that cannot be found elsewhere.",
       "Display visible last-updated dates and maintain a regular content refresh cadence.",
-    ]
+    ],
   },
   {
     id: "technical-seo",
@@ -187,7 +191,7 @@ const AUDIT_DIMENSIONS = [
       "Craft title tags that include the primary keyword within the first 30 characters.",
       "Add descriptive alt text to all images — describe content, not just 'image of...'.",
       "Implement lazy loading for below-fold images and defer non-critical JavaScript.",
-    ]
+    ],
   },
 ];
 
@@ -238,25 +242,41 @@ const BLOG_POSTS = [
 ];
 
 /* ═══════════════════════════════════════════════════════════════════
-   UTILITY FUNCTIONS
-   ═══════════════════════════════════════════════════════════════════ */
-/* ═══════════════════════════════════════════════════════════════════
    API CONFIGURATION
    ───────────────────────────────────────────────────────────────────
    Public audits call the Worker directly (free-tier results).
-   Admin audits call /api/admin-audit (Pages Function, full results).
-   The admin route is protected by Cloudflare Access.
+   Admin audits on localhost use admin key from localStorage.
+   Set key once in browser console: localStorage.setItem("adminKey", "your-key")
    ═══════════════════════════════════════════════════════════════════ */
 const API_BASE = "https://citesite-api.onepau.workers.dev";
+const IS_LOCAL = typeof window !== "undefined" && window.location.hostname === "localhost";
+
+const getAccessJWT = () => {
+  const match = document.cookie.match(/CF_Authorization=([^;]+)/);
+  return match ? match[1] : null;
+};
 
 const callAuditAPI = async (url, isAdmin = false) => {
+  const headers = { "Content-Type": "application/json" };
+  if (isAdmin) {
+    if (IS_LOCAL) {
+      // For local dev: reads admin key from localStorage
+      // Set it once in console: localStorage.setItem("adminKey", "your-key")
+      const key = localStorage.getItem("adminKey");
+      if (key) headers["X-Admin-Key"] = key;
+    } else {
+      const jwt = getAccessJWT();
+      if (jwt) headers["Cf-Access-Jwt-Assertion"] = jwt;
+    }
+  }
+
   const endpoint = isAdmin
-    ? "/api/admin-audit"
+    ? `${API_BASE}/api/audit/full`
     : `${API_BASE}/api/audit`;
 
   const res = await fetch(endpoint, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ url }),
   });
 
@@ -283,6 +303,9 @@ const callAuditAPI = async (url, isAdmin = false) => {
   });
 };
 
+/* ═══════════════════════════════════════════════════════════════════
+   UTILITY FUNCTIONS
+   ═══════════════════════════════════════════════════════════════════ */
 const getOverallScore = (dims) =>
   Math.round(dims.reduce((s, d) => s + d.score * d.weight, 0));
 
@@ -315,9 +338,9 @@ const ScoreGauge = ({ score, size = 120 }) => {
   return (
     <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-[135deg]">
-        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#1e293b" strokeWidth="8"
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#1e293b" strokeWidth="8"
           strokeDasharray={`${arc} ${circ}`} strokeLinecap="round" />
-        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth="8"
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth="8"
           strokeDasharray={`${filled} ${circ}`} strokeLinecap="round"
           style={{ transition: "stroke-dasharray 1s ease" }} />
       </svg>
@@ -344,8 +367,8 @@ const LockedOverlay = ({ onUnlock }) => (
 const DimensionCard = ({ dim, isPaid, onUnlock }) => {
   const Ico = IconMap[dim.icon] || Globe;
   const color = getScoreColor(dim.score);
-  const freeChecks = dim.checks.filter(c => c.tier === "free");
-  const paidChecks = dim.checks.filter(c => c.tier === "paid");
+  const freeChecks = dim.checks.filter((c) => c.tier === "free");
+  const paidChecks = dim.checks.filter((c) => c.tier === "paid");
 
   return (
     <div className="relative bg-slate-800/80 rounded-xl border border-slate-700/50 p-5 hover:border-slate-600 transition-colors">
@@ -369,7 +392,7 @@ const DimensionCard = ({ dim, isPaid, onUnlock }) => {
       </div>
       {freeChecks.length > 0 && (
         <div className="space-y-2 mb-3">
-          {freeChecks.map(c => (
+          {freeChecks.map((c) => (
             <div key={c.id} className="flex items-center justify-between text-sm">
               <div className="flex items-center gap-2">
                 {c.score >= c.maxPoints * 0.7 ? <CheckCircle size={14} className="text-emerald-400" /> :
@@ -386,15 +409,15 @@ const DimensionCard = ({ dim, isPaid, onUnlock }) => {
         <div className="relative mt-2">
           {!isPaid && <LockedOverlay onUnlock={onUnlock} />}
           <div className="space-y-2">
-            {paidChecks.map(c => (
+            {paidChecks.map((c) => (
               <div key={c.id} className="flex items-center justify-between text-sm">
                 <div className="flex items-center gap-2">
-                  {c.score >= c.maxPoints * 0.7 ? <CheckCircle size={14} className="text-emerald-400" /> :
-                   c.score >= c.maxPoints * 0.4 ? <AlertTriangle size={14} className="text-amber-400" /> :
+                  {c.score !== null && c.score >= c.maxPoints * 0.7 ? <CheckCircle size={14} className="text-emerald-400" /> :
+                   c.score !== null && c.score >= c.maxPoints * 0.4 ? <AlertTriangle size={14} className="text-amber-400" /> :
                    <XCircle size={14} className="text-red-400" />}
                   <span className="text-slate-300">{c.name}</span>
                 </div>
-                <span className="text-slate-400 text-xs">{c.score}/{c.maxPoints}</span>
+                <span className="text-slate-400 text-xs">{c.score !== null ? `${c.score}/${c.maxPoints}` : "—"}</span>
               </div>
             ))}
           </div>
@@ -434,7 +457,7 @@ const PaymentModal = ({ onClose, url }) => {
             <div className="bg-slate-900 rounded-lg p-3 text-cyan-400 text-sm mb-4 font-mono truncate">{url}</div>
             <div className="mb-4">
               <label className="text-sm text-slate-400 block mb-1">Email for report delivery</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                 className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-cyan-500"
                 placeholder="you@example.com" />
             </div>
@@ -503,9 +526,8 @@ export default function App() {
 
   const overall = results ? getOverallScore(results) : 0;
   const overallColor = getScoreColor(overall);
-  const radarData = results ? results.map(d => ({ dim: d.shortName, score: d.score, fullMark: 100 })) : [];
+  const radarData = results ? results.map((d) => ({ dim: d.shortName, score: d.score, fullMark: 100 })) : [];
 
-  const criticalIssues = results ? results.filter(d => d.score < 40).slice(0, 3) : [];
   const topImprovements = results
     ? [...results].sort((a, b) => {
         const aGap = (100 - a.score) * a.weight;
@@ -560,8 +582,8 @@ export default function App() {
               Get an instant audit across six weighted dimensions — from crawlability to citability. Discover what's helping and hurting your visibility in ChatGPT, Perplexity, Gemini, and beyond.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 max-w-xl mx-auto">
-              <input type="url" value={url} onChange={e => setUrl(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && runAudit()}
+              <input type="url" value={url} onChange={(e) => setUrl(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && runAudit()}
                 className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-5 py-3.5 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 text-sm"
                 placeholder="Enter any URL — e.g. https://example.com/blog-post" />
               <button onClick={runAudit}
@@ -575,7 +597,7 @@ export default function App() {
           <section className="max-w-6xl mx-auto px-4 pb-16">
             <h2 className="text-xl font-bold text-center mb-8 text-white">Six dimensions. One score.</h2>
             <div className="grid md:grid-cols-3 gap-4">
-              {AUDIT_DIMENSIONS.map(d => {
+              {AUDIT_DIMENSIONS.map((d) => {
                 const Ico = IconMap[d.icon] || Globe;
                 return (
                   <div key={d.id} className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5 hover:border-cyan-500/30 transition-colors">
@@ -616,7 +638,7 @@ export default function App() {
               <p className="text-emerald-400 text-sm flex items-center justify-center gap-2"><CheckCircle size={16} /> You're on the list.</p>
             ) : (
               <div className="flex gap-2">
-                <input type="email" value={nlEmail} onChange={e => setNlEmail(e.target.value)}
+                <input type="email" value={nlEmail} onChange={(e) => setNlEmail(e.target.value)}
                   className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-cyan-500"
                   placeholder="your@email.com" />
                 <button onClick={() => nlEmail && setNlSent(true)}
@@ -634,7 +656,7 @@ export default function App() {
           <div className="w-16 h-16 rounded-full border-4 border-slate-700 border-t-cyan-500 animate-spin mx-auto mb-6" />
           <h2 className="text-xl font-bold text-white mb-2">Analysing your page…</h2>
           <p className="text-slate-400 text-sm">Fetching, inspecting, and scoring across 6 dimensions</p>
-          <p className="text-slate-500 text-xs mt-1">This usually takes 20-30 seconds</p>
+          <p className="text-slate-500 text-xs mt-1">This usually takes 20–30 seconds</p>
           <p className="text-cyan-400 text-sm mt-2 font-mono truncate">{url}</p>
         </div>
       )}
@@ -666,8 +688,8 @@ export default function App() {
               Full unfiltered results across all six dimensions. No paid tier restrictions.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 max-w-xl mx-auto">
-              <input type="url" value={url} onChange={e => setUrl(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && runAudit()}
+              <input type="url" value={url} onChange={(e) => setUrl(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && runAudit()}
                 className="flex-1 bg-slate-800 border border-amber-500/30 rounded-xl px-5 py-3.5 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 text-sm"
                 placeholder="Enter any URL to audit" />
               <button onClick={runAudit}
@@ -695,7 +717,7 @@ export default function App() {
               <div>
                 <h2 className="text-2xl font-bold text-white mb-1">Overall Score</h2>
                 <span className="text-sm px-3 py-1 rounded-full font-medium" style={{ background: `${overallColor}20`, color: overallColor }}>{getScoreLabel(overall)}</span>
-                <p className="text-slate-400 text-sm mt-3">Weighted average across {AUDIT_DIMENSIONS.length} dimensions, {AUDIT_DIMENSIONS.reduce((s,d)=>s+d.checks.length,0)} individual checks.</p>
+                <p className="text-slate-400 text-sm mt-3">Weighted average across {AUDIT_DIMENSIONS.length} dimensions, {AUDIT_DIMENSIONS.reduce((s, d) => s + d.checks.length, 0)} individual checks.</p>
               </div>
             </div>
             <div className="bg-slate-800/80 rounded-xl border border-slate-700/50 p-4">
@@ -712,21 +734,21 @@ export default function App() {
 
           {/* DIMENSION CARDS */}
           <div className="grid md:grid-cols-2 gap-5 mb-8">
-            {results.map(d => (
+            {results.map((d) => (
               <DimensionCard key={d.id} dim={d} isPaid={isAdmin} onUnlock={() => setShowPayment(true)} />
             ))}
           </div>
 
           {/* FREE RECOMMENDATIONS */}
           <div className="bg-slate-800/80 rounded-xl border border-slate-700/50 p-6 mb-6">
-            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><TrendingUp size={20} className="text-cyan-400" /> Quick Wins (Free Preview)</h3>
+            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><TrendingUp size={20} className="text-cyan-400" /> Quick Wins {!isAdmin && "(Free Preview)"}</h3>
             <div className="space-y-3">
               {topImprovements.map((d, i) => (
                 <div key={d.id} className="flex items-start gap-3 bg-slate-900/50 rounded-lg p-4">
-                  <span className="w-6 h-6 rounded-full bg-cyan-500/20 text-cyan-400 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{i+1}</span>
+                  <span className="w-6 h-6 rounded-full bg-cyan-500/20 text-cyan-400 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{i + 1}</span>
                   <div>
                     <p className="text-white text-sm font-medium">{d.shortName}: {d.recommendations[0]}</p>
-                    <p className="text-slate-400 text-xs mt-1">Current score: {d.score}/100 · Weight: {d.weight*100}%</p>
+                    <p className="text-slate-400 text-xs mt-1">Current score: {d.score}/100 · Weight: {d.weight * 100}%</p>
                   </div>
                 </div>
               ))}
@@ -738,7 +760,7 @@ export default function App() {
             {!isAdmin && <LockedOverlay onUnlock={() => setShowPayment(true)} />}
             <h3 className="text-lg font-bold text-white mb-4">Full Recommendations & Code Snippets</h3>
             <div className={`space-y-3 ${!isAdmin ? "opacity-40" : ""}`}>
-              {results.map(d => d.recommendations.slice(1).map((r, i) => (
+              {results.map((d) => d.recommendations.slice(1).map((r, i) => (
                 <div key={`${d.id}-${i}`} className="bg-slate-900/50 rounded-lg p-4">
                   <p className="text-white text-sm">{d.shortName}: {r}</p>
                 </div>
@@ -753,7 +775,7 @@ export default function App() {
               <p className="text-emerald-400 text-sm flex items-center justify-center gap-2"><CheckCircle size={16} /> Subscribed.</p>
             ) : (
               <div className="flex gap-2">
-                <input type="email" value={nlEmail} onChange={e => setNlEmail(e.target.value)}
+                <input type="email" value={nlEmail} onChange={(e) => setNlEmail(e.target.value)}
                   className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-cyan-500"
                   placeholder="your@email.com" />
                 <button onClick={() => nlEmail && setNlSent(true)}
@@ -770,7 +792,7 @@ export default function App() {
           <h1 className="text-3xl font-bold text-white mb-2">Blog</h1>
           <p className="text-slate-400 mb-8">Guides, case studies, and updates on SEO, GEO, and AI-optimised content.</p>
           <div className="grid md:grid-cols-2 gap-5">
-            {BLOG_POSTS.map(p => (
+            {BLOG_POSTS.map((p) => (
               <article key={p.id} className="bg-slate-800/80 rounded-xl border border-slate-700/50 p-5 hover:border-cyan-500/30 transition-colors cursor-pointer group">
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">{p.category}</span>
