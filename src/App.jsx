@@ -1,4 +1,8 @@
 import { useState } from "react";
+import { marked } from "marked";
+import { pdf } from "@react-pdf/renderer";
+import { AuditPDFDocument } from "./components/AuditPDFDocument";
+import { PDFEditModal } from "./components/PDFEditModal";
 import {
   Search, Lock, CheckCircle, AlertTriangle, XCircle,
   ChevronRight, Mail, CreditCard, X, ArrowRight,
@@ -9,6 +13,8 @@ import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis,
   PolarRadiusAxis, ResponsiveContainer,
 } from "recharts";
+
+const mdFiles = import.meta.glob('../content/blog/*.md', { query: '?raw', import: 'default' });
 
 /* ═══════════════════════════════════════════════════════════════════
    AUDIT ENGINE CONFIGURATION
@@ -288,19 +294,22 @@ const callAuditAPI = async (url, isAdmin = false) => {
   const data = await res.json();
   if (data.error) throw new Error(data.error);
 
-  // Map API response to the shape the UI expects
-  return data.dimensions.map((dim) => {
-    const config = AUDIT_DIMENSIONS.find((d) => d.id === dim.id) || {};
-    return {
-      ...config,
-      ...dim,
-      checks: dim.checks.map((c) => {
-        const configCheck = (config.checks || []).find((cc) => cc.id === c.id) || {};
-        return { ...configCheck, ...c };
-      }),
-      recommendations: config.recommendations || [],
-    };
-  });
+  // Merge API dimension data with local config (for icon, shortName, static recommendations)
+  // while preserving all top-level fields (criticalIssues, improvements, signatureRecommendation, inspection)
+  return {
+    ...data,
+    dimensions: data.dimensions.map((dim) => {
+      const config = AUDIT_DIMENSIONS.find((d) => d.id === dim.id) || {};
+      return {
+        ...config,
+        ...dim,
+        checks: dim.checks.map((c) => {
+          const configCheck = (config.checks || []).find((cc) => cc.id === c.id) || {};
+          return { ...configCheck, ...c };
+        }),
+      };
+    }),
+  };
 };
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -487,6 +496,81 @@ const PaymentModal = ({ onClose, url }) => {
 };
 
 /* ═══════════════════════════════════════════════════════════════════
+   DEV ADMIN PANEL — renders only on localhost
+   Usage:
+     1. Paste your ADMIN_KEY into the input (saved to localStorage).
+     2. Click "Admin Mode" to go to /admin-audit with full results + PDF export.
+   ═══════════════════════════════════════════════════════════════════ */
+const DevAdminPanel = () => {
+  const [open, setOpen] = useState(false);
+  const [key, setKey] = useState(() => localStorage.getItem("adminKey") || "");
+  const active = typeof window !== "undefined" && window.location.pathname === "/admin-audit";
+
+  const saveAndGo = () => {
+    localStorage.setItem("adminKey", key);
+    window.location.href = "/admin-audit";
+  };
+
+  return (
+    <div className="fixed bottom-4 right-4 z-[100] text-xs font-mono">
+      {open ? (
+        <div className="bg-amber-950 border border-amber-600 rounded-xl p-4 w-64 shadow-2xl">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-amber-400 font-bold tracking-widest text-[10px] uppercase">Dev · Admin Panel</span>
+            <button onClick={() => setOpen(false)} className="text-amber-600 hover:text-amber-400">
+              <X size={14} />
+            </button>
+          </div>
+
+          {active ? (
+            <div className="flex items-center gap-2 bg-amber-500/10 rounded-lg px-3 py-2 mb-3">
+              <CheckCircle size={13} className="text-amber-400" />
+              <span className="text-amber-300 font-semibold">Admin mode active</span>
+            </div>
+          ) : null}
+
+          <label className="text-amber-600 block mb-1">Admin Key</label>
+          <input
+            type="password"
+            value={key}
+            onChange={(e) => { setKey(e.target.value); localStorage.setItem("adminKey", e.target.value); }}
+            placeholder="paste your ADMIN_KEY"
+            className="w-full bg-amber-950/80 border border-amber-800 rounded-lg px-3 py-1.5 text-amber-200 placeholder-amber-800 focus:outline-none focus:border-amber-500 mb-3"
+          />
+
+          {active ? (
+            <button
+              onClick={() => { window.location.href = "/"; }}
+              className="w-full bg-slate-700 text-white py-1.5 rounded-lg hover:bg-slate-600 transition-colors"
+            >
+              ← Back to public view
+            </button>
+          ) : (
+            <button
+              onClick={saveAndGo}
+              className="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white py-1.5 rounded-lg font-semibold hover:from-amber-400 hover:to-orange-400 transition-all"
+            >
+              Enter Admin Mode →
+            </button>
+          )}
+
+          <p className="text-amber-800 text-[9px] mt-2 leading-tight">
+            Sends X-Admin-Key to the worker. Key is saved in localStorage.
+          </p>
+        </div>
+      ) : (
+        <button
+          onClick={() => setOpen(true)}
+          className="bg-amber-500 text-amber-950 px-3 py-1.5 rounded-lg font-bold hover:bg-amber-400 transition-colors shadow-lg flex items-center gap-1.5"
+        >
+          <Shield size={13} /> DEV
+        </button>
+      )}
+    </div>
+  );
+};
+
+/* ═══════════════════════════════════════════════════════════════════
    MAIN APP
    ═══════════════════════════════════════════════════════════════════ */
 export default function App() {
@@ -494,9 +578,7 @@ export default function App() {
     if (typeof window !== "undefined" && window.location.pathname === "/admin-audit") return "admin-audit";
     return "home";
   });
-  const [isAdmin, setIsAdmin] = useState(() => {
-    return typeof window !== "undefined" && window.location.pathname === "/admin-audit";
-  });
+  const isAdmin = typeof window !== "undefined" && window.location.pathname === "/admin-audit";
   const [url, setUrl] = useState("");
   const [auditUrl, setAuditUrl] = useState("");
   const [results, setResults] = useState(null);
@@ -506,6 +588,47 @@ export default function App() {
   const [nlEmail, setNlEmail] = useState("");
   const [nlSent, setNlSent] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showPDFModal, setShowPDFModal] = useState(false);
+  const [pdfGenerating, setPdfGenerating] = useState(false);
+  const [selectedPost, setSelectedPost] = useState(null);
+  const [postContent, setPostContent] = useState('');
+
+  const loadPost = async (post) => {
+    setSelectedPost(post);
+    setPostContent('');
+    setPage("post");
+    const loader = mdFiles[`../content/blog/${post.slug}.md`];
+    if (loader) {
+      const raw = await loader();
+      const body = raw.replace(/^---[\s\S]*?---\n/, '');
+      setPostContent(marked.parse(body));
+    } else {
+      setPostContent('<p>Full post content coming soon.</p>');
+    }
+  };
+
+  const handleGeneratePDF = async (editedData) => {
+    setPdfGenerating(true);
+    try {
+      const blob = await pdf(
+        <AuditPDFDocument auditData={editedData} url={auditUrl} />
+      ).toBlob();
+      const downloadUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = `citesite-audit-${new URL(auditUrl).hostname}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(downloadUrl);
+      setShowPDFModal(false);
+    } catch (e) {
+      console.error(e);
+      alert("PDF generation failed. Please try again.");
+    } finally {
+      setPdfGenerating(false);
+    }
+  };
 
   const runAudit = async () => {
     if (!url.trim()) return;
@@ -524,17 +647,15 @@ export default function App() {
     }
   };
 
-  const overall = results ? getOverallScore(results) : 0;
+  const overall = results ? getOverallScore(results.dimensions) : 0;
   const overallColor = getScoreColor(overall);
-  const radarData = results ? results.map((d) => ({ dim: d.shortName, score: d.score, fullMark: 100 })) : [];
+  const radarData = results ? results.dimensions.map((d) => ({ dim: d.shortName, score: d.score, fullMark: 100 })) : [];
 
-  const topImprovements = results
-    ? [...results].sort((a, b) => {
-        const aGap = (100 - a.score) * a.weight;
-        const bGap = (100 - b.score) * b.weight;
-        return bGap - aGap;
-      }).slice(0, 3)
-    : [];
+  const topImprovements = results?.improvements?.length
+    ? results.improvements.slice(0, 3)
+    : results
+      ? [...results.dimensions].sort((a, b) => (100 - b.score) * b.weight - (100 - a.score) * a.weight).slice(0, 3)
+      : [];
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
@@ -705,9 +826,21 @@ export default function App() {
       {page === "results" && results && !loading && (
         <div className="max-w-6xl mx-auto px-4 py-8">
           <div className="mb-6">
-            {isAdmin && <div className="inline-block px-3 py-1 rounded-full bg-amber-500/10 text-amber-400 text-xs font-medium mb-3 border border-amber-500/20">ADMIN — Full Results</div>}
-            <p className="text-slate-400 text-sm mb-1">Audit results for</p>
-            <p className="text-cyan-400 font-mono text-sm truncate">{auditUrl}</p>
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              {isAdmin && <div className="inline-block px-3 py-1 rounded-full bg-amber-500/10 text-amber-400 text-xs font-medium mb-3 border border-amber-500/20">ADMIN — Full Results</div>}
+              <p className="text-slate-400 text-sm mb-1">Audit results for</p>
+              <p className="text-cyan-400 font-mono text-sm truncate">{auditUrl}</p>
+            </div>
+            {isAdmin && (
+              <button
+                onClick={() => setShowPDFModal(true)}
+                className="flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:from-cyan-400 hover:to-blue-500 transition-all shrink-0"
+              >
+                <FileText size={16} /> Export 10-Page PDF
+              </button>
+            )}
+          </div>
           </div>
 
           {/* OVERALL */}
@@ -734,39 +867,58 @@ export default function App() {
 
           {/* DIMENSION CARDS */}
           <div className="grid md:grid-cols-2 gap-5 mb-8">
-            {results.map((d) => (
+            {results.dimensions.map((d) => (
               <DimensionCard key={d.id} dim={d} isPaid={isAdmin} onUnlock={() => setShowPayment(true)} />
             ))}
           </div>
 
-          {/* FREE RECOMMENDATIONS */}
+          {/* QUICK WINS */}
           <div className="bg-slate-800/80 rounded-xl border border-slate-700/50 p-6 mb-6">
             <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><TrendingUp size={20} className="text-cyan-400" /> Quick Wins {!isAdmin && "(Free Preview)"}</h3>
             <div className="space-y-3">
-              {topImprovements.map((d, i) => (
-                <div key={d.id} className="flex items-start gap-3 bg-slate-900/50 rounded-lg p-4">
+              {topImprovements.map((item, i) => (
+                <div key={i} className="flex items-start gap-3 bg-slate-900/50 rounded-lg p-4">
                   <span className="w-6 h-6 rounded-full bg-cyan-500/20 text-cyan-400 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{i + 1}</span>
                   <div>
-                    <p className="text-white text-sm font-medium">{d.shortName}: {d.recommendations[0]}</p>
-                    <p className="text-slate-400 text-xs mt-1">Current score: {d.score}/100 · Weight: {d.weight * 100}%</p>
+                    <p className="text-white text-sm font-medium">{item.title || `${item.shortName}: ${item.recommendations?.[0]}`}</p>
+                    {item.description && <p className="text-slate-400 text-xs mt-1">{item.description}</p>}
+                    {item.impact && <p className="text-slate-500 text-xs mt-1">Impact: {item.impact} · Effort: {item.effort}</p>}
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* FULL RECS — locked for public, open for admin */}
-          <div className="relative bg-slate-800/80 rounded-xl border border-slate-700/50 p-6 mb-10">
+          {/* CRITICAL ISSUES & SIGNATURE REC — locked for public, open for admin */}
+          <div className="relative bg-slate-800/80 rounded-xl border border-slate-700/50 p-6 mb-6">
             {!isAdmin && <LockedOverlay onUnlock={() => setShowPayment(true)} />}
-            <h3 className="text-lg font-bold text-white mb-4">Full Recommendations & Code Snippets</h3>
-            <div className={`space-y-3 ${!isAdmin ? "opacity-40" : ""}`}>
-              {results.map((d) => d.recommendations.slice(1).map((r, i) => (
-                <div key={`${d.id}-${i}`} className="bg-slate-900/50 rounded-lg p-4">
-                  <p className="text-white text-sm">{d.shortName}: {r}</p>
+            <h3 className="text-lg font-bold text-white mb-4">Critical Issues & Code Fixes</h3>
+            <div className={`space-y-4 ${!isAdmin ? "opacity-40" : ""}`}>
+              {(results.criticalIssues || []).map((issue, i) => (
+                <div key={i} className="bg-slate-900/50 rounded-lg p-4">
+                  <p className="text-white text-sm font-semibold mb-1 flex items-center gap-2">
+                    <XCircle size={14} className="text-red-400" /> {issue.title}
+                  </p>
+                  <p className="text-slate-400 text-xs mb-2">{issue.description}</p>
+                  <p className="text-slate-300 text-xs mb-2">{issue.fix}</p>
+                  {issue.codeSnippet && (
+                    <pre className="bg-slate-950 text-cyan-300 text-xs p-3 rounded-lg overflow-x-auto mt-2 whitespace-pre-wrap">{issue.codeSnippet}</pre>
+                  )}
                 </div>
-              )))}
+              ))}
             </div>
           </div>
+
+          {results.signatureRecommendation && isAdmin && (
+            <div className="bg-gradient-to-br from-cyan-500/10 to-blue-600/10 rounded-xl border border-cyan-500/30 p-6 mb-10">
+              <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2"><Star size={20} className="text-cyan-400" /> Signature Recommendation</h3>
+              <p className="text-cyan-400 font-semibold text-sm mb-1">{results.signatureRecommendation.title}</p>
+              <p className="text-slate-300 text-sm mb-3">{results.signatureRecommendation.description}</p>
+              {results.signatureRecommendation.codeSnippet && (
+                <pre className="bg-slate-950 text-cyan-300 text-xs p-3 rounded-lg overflow-x-auto whitespace-pre-wrap">{results.signatureRecommendation.codeSnippet}</pre>
+              )}
+            </div>
+          )}
 
           {/* NEWSLETTER IN RESULTS */}
           <div className="max-w-xl mx-auto text-center pb-12">
@@ -793,7 +945,7 @@ export default function App() {
           <p className="text-slate-400 mb-8">Guides, case studies, and updates on SEO, GEO, and AI-optimised content.</p>
           <div className="grid md:grid-cols-2 gap-5">
             {BLOG_POSTS.map((p) => (
-              <article key={p.id} className="bg-slate-800/80 rounded-xl border border-slate-700/50 p-5 hover:border-cyan-500/30 transition-colors cursor-pointer group">
+              <article key={p.id} onClick={() => loadPost(p)} className="bg-slate-800/80 rounded-xl border border-slate-700/50 p-5 hover:border-cyan-500/30 transition-colors cursor-pointer group">
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">{p.category}</span>
                   <span className="text-slate-500 text-xs">{p.readTime}</span>
@@ -807,6 +959,28 @@ export default function App() {
               </article>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* BLOG POST */}
+      {page === "post" && selectedPost && (
+        <div className="max-w-2xl mx-auto px-4 py-12">
+          <button onClick={() => setPage("blog")} className="text-slate-400 text-sm mb-8 hover:text-white flex items-center gap-1">
+            <ChevronRight size={14} className="rotate-180" /> Back to Blog
+          </button>
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">{selectedPost.category}</span>
+            <span className="text-slate-500 text-xs">{selectedPost.readTime}</span>
+          </div>
+          <h1 className="text-3xl font-bold text-white mb-2">{selectedPost.title}</h1>
+          <p className="text-slate-500 text-sm mb-10">{selectedPost.date}</p>
+          {postContent ? (
+            <div className="blog-content" dangerouslySetInnerHTML={{ __html: postContent }} />
+          ) : (
+            <div className="flex items-center justify-center py-20">
+              <div className="w-8 h-8 rounded-full border-2 border-slate-700 border-t-cyan-500 animate-spin" />
+            </div>
+          )}
         </div>
       )}
 
@@ -865,6 +1039,19 @@ export default function App() {
       </footer>
 
       {showPayment && <PaymentModal onClose={() => setShowPayment(false)} url={auditUrl || url || "https://example.com"} />}
+
+      {/* ── DEV ADMIN PANEL — localhost only ── */}
+      {IS_LOCAL && <DevAdminPanel />}
+
+      {showPDFModal && results && (
+        <PDFEditModal
+          auditData={results}
+          url={auditUrl}
+          onClose={() => setShowPDFModal(false)}
+          onGenerate={handleGeneratePDF}
+          isGenerating={pdfGenerating}
+        />
+      )}
     </div>
   );
 }
