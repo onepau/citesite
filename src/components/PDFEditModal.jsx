@@ -63,6 +63,139 @@ export function PDFEditModal({ auditData, url, onClose, onGenerate, isGenerating
       signatureRecommendation: { ...prev.signatureRecommendation, [field]: value },
     }));
 
+  // ── New STEP-5 helpers ──
+  const setExecSummary = (value) =>
+    setDraft((prev) => ({ ...prev, executiveSummary: value }));
+
+  const setDimNarrative = (di, value) =>
+    setDraft((prev) => ({
+      ...prev,
+      dimensions: prev.dimensions.map((d, i) => i === di ? { ...d, narrative: value } : d),
+    }));
+
+  const setDimQuickWin = (di, qi, value) =>
+    setDraft((prev) => ({
+      ...prev,
+      dimensions: prev.dimensions.map((d, i) => i === di
+        ? { ...d, quickWins: (d.quickWins || []).map((w, j) => j === qi ? value : w) }
+        : d),
+    }));
+  const addDimQuickWin = (di) =>
+    setDraft((prev) => ({
+      ...prev,
+      dimensions: prev.dimensions.map((d, i) => i === di
+        ? { ...d, quickWins: [...(d.quickWins || []), ''] }
+        : d),
+    }));
+  const removeDimQuickWin = (di, qi) =>
+    setDraft((prev) => ({
+      ...prev,
+      dimensions: prev.dimensions.map((d, i) => i === di
+        ? { ...d, quickWins: (d.quickWins || []).filter((_, j) => j !== qi) }
+        : d),
+    }));
+
+  const setDimAction = (di, ai, field, value) =>
+    setDraft((prev) => ({
+      ...prev,
+      dimensions: prev.dimensions.map((d, i) => i === di
+        ? {
+            ...d,
+            prioritizedActions: (d.prioritizedActions || []).map((a, j) =>
+              j === ai ? { ...a, [field]: value } : a
+            ),
+          }
+        : d),
+    }));
+  const addDimAction = (di) =>
+    setDraft((prev) => ({
+      ...prev,
+      dimensions: prev.dimensions.map((d, i) => i === di
+        ? {
+            ...d,
+            prioritizedActions: [
+              ...(d.prioritizedActions || []),
+              { action: '', effort: 'Medium', impact: 'Medium', estimatedTrafficLift: '' },
+            ],
+          }
+        : d),
+    }));
+  const removeDimAction = (di, ai) =>
+    setDraft((prev) => ({
+      ...prev,
+      dimensions: prev.dimensions.map((d, i) => i === di
+        ? { ...d, prioritizedActions: (d.prioritizedActions || []).filter((_, j) => j !== ai) }
+        : d),
+    }));
+
+  const setCompetitorBenchmark = (value) =>
+    setDraft((prev) => ({
+      ...prev,
+      competitorInsights: { ...(prev.competitorInsights || { gaps: [] }), benchmark: value },
+    }));
+  const setCompetitorGap = (gi, value) =>
+    setDraft((prev) => ({
+      ...prev,
+      competitorInsights: {
+        ...(prev.competitorInsights || { benchmark: '' }),
+        gaps: (prev.competitorInsights?.gaps || []).map((g, j) => j === gi ? value : g),
+      },
+    }));
+  const addCompetitorGap = () =>
+    setDraft((prev) => ({
+      ...prev,
+      competitorInsights: {
+        ...(prev.competitorInsights || { benchmark: '' }),
+        gaps: [...(prev.competitorInsights?.gaps || []), ''],
+      },
+    }));
+  const removeCompetitorGap = (gi) =>
+    setDraft((prev) => ({
+      ...prev,
+      competitorInsights: {
+        ...(prev.competitorInsights || { benchmark: '' }),
+        gaps: (prev.competitorInsights?.gaps || []).filter((_, j) => j !== gi),
+      },
+    }));
+
+  const setRoadmapItem = (phase, ri, value) =>
+    setDraft((prev) => ({
+      ...prev,
+      roadmap: {
+        ...(prev.roadmap || { thirtyDay: [], sixtyDay: [], ninetyDay: [] }),
+        [phase]: (prev.roadmap?.[phase] || []).map((it, j) => j === ri ? value : it),
+      },
+    }));
+  const addRoadmapItem = (phase) =>
+    setDraft((prev) => ({
+      ...prev,
+      roadmap: {
+        ...(prev.roadmap || { thirtyDay: [], sixtyDay: [], ninetyDay: [] }),
+        [phase]: [...(prev.roadmap?.[phase] || []), ''],
+      },
+    }));
+  const removeRoadmapItem = (phase, ri) =>
+    setDraft((prev) => ({
+      ...prev,
+      roadmap: {
+        ...(prev.roadmap || { thirtyDay: [], sixtyDay: [], ninetyDay: [] }),
+        [phase]: (prev.roadmap?.[phase] || []).filter((_, j) => j !== ri),
+      },
+    }));
+
+  const setTool = (ti, value) =>
+    setDraft((prev) => ({
+      ...prev,
+      toolRecommendations: (prev.toolRecommendations || []).map((t, j) => j === ti ? value : t),
+    }));
+  const addTool = () =>
+    setDraft((prev) => ({ ...prev, toolRecommendations: [...(prev.toolRecommendations || []), ''] }));
+  const removeTool = (ti) =>
+    setDraft((prev) => ({
+      ...prev,
+      toolRecommendations: (prev.toolRecommendations || []).filter((_, j) => j !== ti),
+    }));
+
   const inputCls = 'w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-cyan-500';
   const textareaCls = `${inputCls} resize-none`;
   const labelCls = 'text-xs text-slate-400 block mb-1.5 font-medium';
@@ -89,7 +222,7 @@ export function PDFEditModal({ auditData, url, onClose, onGenerate, isGenerating
           <div>
             <h2 className="text-lg font-bold text-white">Edit Report Before Export</h2>
             <p className="text-slate-400 text-xs mt-1 truncate max-w-md">
-              {url} · Review and adjust any field, then generate the 10-page PDF
+              {url} · Review and adjust any field, then generate the 16-page PDF
             </p>
           </div>
           <button onClick={onClose} className="ml-4 p-1.5 hover:bg-slate-700 rounded-lg transition-colors shrink-0">
@@ -165,8 +298,212 @@ export function PDFEditModal({ auditData, url, onClose, onGenerate, isGenerating
                   <Plus size={12} /> Add Observation
                 </button>
               </div>
+
+              <div>
+                <label className={labelCls}>Narrative (2-3 paragraphs)</label>
+                <textarea
+                  value={dim.narrative || ''}
+                  onChange={(e) => setDimNarrative(di, e.target.value)}
+                  rows={5}
+                  className={textareaCls}
+                />
+              </div>
+
+              <div>
+                <label className={labelCls}>Quick Wins</label>
+                {(dim.quickWins || []).map((win, qi) => (
+                  <div key={qi} className="flex gap-2 mb-2">
+                    <textarea
+                      value={win}
+                      onChange={(e) => setDimQuickWin(di, qi, e.target.value)}
+                      rows={1}
+                      className={`${textareaCls} flex-1`}
+                    />
+                    <button
+                      onClick={() => removeDimQuickWin(di, qi)}
+                      className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors mt-0.5 shrink-0"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => addDimQuickWin(di)}
+                  className="flex items-center gap-1.5 text-xs font-medium text-cyan-400 hover:bg-cyan-400/10 px-2 py-1.5 rounded-lg transition-colors"
+                >
+                  <Plus size={12} /> Add Quick Win
+                </button>
+              </div>
+
+              <div>
+                <label className={labelCls}>Prioritised Actions</label>
+                {(dim.prioritizedActions || []).map((a, ai) => (
+                  <div key={ai} className="border border-slate-700 rounded-lg p-3 mb-2 space-y-2 bg-slate-900/30">
+                    <div className="flex gap-2">
+                      <textarea
+                        value={a.action || ''}
+                        onChange={(e) => setDimAction(di, ai, 'action', e.target.value)}
+                        rows={2}
+                        placeholder="Action description"
+                        className={`${textareaCls} flex-1`}
+                      />
+                      <button
+                        onClick={() => removeDimAction(di, ai)}
+                        className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors mt-0.5 shrink-0"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <select
+                        value={a.effort || 'Medium'}
+                        onChange={(e) => setDimAction(di, ai, 'effort', e.target.value)}
+                        className={inputCls}
+                      >
+                        <option value="Low">Effort: Low</option>
+                        <option value="Medium">Effort: Medium</option>
+                        <option value="High">Effort: High</option>
+                      </select>
+                      <select
+                        value={a.impact || 'Medium'}
+                        onChange={(e) => setDimAction(di, ai, 'impact', e.target.value)}
+                        className={inputCls}
+                      >
+                        <option value="Low">Impact: Low</option>
+                        <option value="Medium">Impact: Medium</option>
+                        <option value="High">Impact: High</option>
+                      </select>
+                      <input
+                        value={a.estimatedTrafficLift || ''}
+                        onChange={(e) => setDimAction(di, ai, 'estimatedTrafficLift', e.target.value)}
+                        placeholder="+5-15% over 90d"
+                        className={inputCls}
+                      />
+                    </div>
+                  </div>
+                ))}
+                <button
+                  onClick={() => addDimAction(di)}
+                  className="flex items-center gap-1.5 text-xs font-medium text-cyan-400 hover:bg-cyan-400/10 px-2 py-1.5 rounded-lg transition-colors"
+                >
+                  <Plus size={12} /> Add Action
+                </button>
+              </div>
             </Section>
           ))}
+
+          {/* Executive Summary (top-level) */}
+          <Section id="exec-summary" title="Executive Summary">
+            <div>
+              <label className={labelCls}>Narrative (3-5 paragraphs separated by blank lines)</label>
+              <textarea
+                value={draft.executiveSummary || ''}
+                onChange={(e) => setExecSummary(e.target.value)}
+                rows={8}
+                className={textareaCls}
+              />
+            </div>
+          </Section>
+
+          {/* Competitor Gap Analysis */}
+          <Section id="competitor" title="Competitor Gap Analysis">
+            <div>
+              <label className={labelCls}>Industry Benchmark (one sentence)</label>
+              <textarea
+                value={draft.competitorInsights?.benchmark || ''}
+                onChange={(e) => setCompetitorBenchmark(e.target.value)}
+                rows={2}
+                className={textareaCls}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Identified Gaps</label>
+              {(draft.competitorInsights?.gaps || []).map((gap, gi) => (
+                <div key={gi} className="flex gap-2 mb-2">
+                  <textarea
+                    value={gap}
+                    onChange={(e) => setCompetitorGap(gi, e.target.value)}
+                    rows={2}
+                    className={`${textareaCls} flex-1`}
+                  />
+                  <button
+                    onClick={() => removeCompetitorGap(gi)}
+                    className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors mt-0.5 shrink-0"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+              <button
+                onClick={addCompetitorGap}
+                className="flex items-center gap-1.5 text-xs font-medium text-cyan-400 hover:bg-cyan-400/10 px-2 py-1.5 rounded-lg transition-colors"
+              >
+                <Plus size={12} /> Add Gap
+              </button>
+            </div>
+          </Section>
+
+          {/* Roadmap */}
+          <Section id="roadmap" title="30 / 60 / 90 Day Roadmap">
+            {[
+              { key: 'thirtyDay', label: '0–30 Days' },
+              { key: 'sixtyDay', label: '31–60 Days' },
+              { key: 'ninetyDay', label: '61–90 Days' },
+            ].map((phase) => (
+              <div key={phase.key}>
+                <label className={labelCls}>{phase.label}</label>
+                {(draft.roadmap?.[phase.key] || []).map((item, ri) => (
+                  <div key={ri} className="flex gap-2 mb-2">
+                    <textarea
+                      value={item}
+                      onChange={(e) => setRoadmapItem(phase.key, ri, e.target.value)}
+                      rows={1}
+                      className={`${textareaCls} flex-1`}
+                    />
+                    <button
+                      onClick={() => removeRoadmapItem(phase.key, ri)}
+                      className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors mt-0.5 shrink-0"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => addRoadmapItem(phase.key)}
+                  className="flex items-center gap-1.5 text-xs font-medium text-cyan-400 hover:bg-cyan-400/10 px-2 py-1.5 rounded-lg transition-colors mb-3"
+                >
+                  <Plus size={12} /> Add {phase.label} item
+                </button>
+              </div>
+            ))}
+          </Section>
+
+          {/* Tool Recommendations */}
+          <Section id="tools" title="Tool Recommendations">
+            {(draft.toolRecommendations || []).map((tool, ti) => (
+              <div key={ti} className="flex gap-2 mb-2">
+                <textarea
+                  value={tool}
+                  onChange={(e) => setTool(ti, e.target.value)}
+                  rows={2}
+                  placeholder='e.g. "Screaming Frog — crawl audit to surface missing canonicals"'
+                  className={`${textareaCls} flex-1`}
+                />
+                <button
+                  onClick={() => removeTool(ti)}
+                  className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors mt-0.5 shrink-0"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+            <button
+              onClick={addTool}
+              className="flex items-center gap-1.5 text-xs font-medium text-cyan-400 hover:bg-cyan-400/10 px-2 py-1.5 rounded-lg transition-colors"
+            >
+              <Plus size={12} /> Add Tool
+            </button>
+          </Section>
 
           {/* Critical Issues */}
           {draft.criticalIssues?.length > 0 && (

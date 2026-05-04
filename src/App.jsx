@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { marked } from "marked";
 import { pdf } from "@react-pdf/renderer";
 import { AuditPDFDocument } from "./components/AuditPDFDocument";
 import { PDFEditModal } from "./components/PDFEditModal";
+import { getLocalPrice, formatPrice } from "./utils/pricing";
 import {
   Search, Lock, CheckCircle, AlertTriangle, XCircle,
   ChevronRight, Mail, CreditCard, X, ArrowRight,
   BarChart3, Shield, FileText, Globe, Eye, Zap, Menu,
-  Star, TrendingUp,
+  Star, TrendingUp, Sparkles, Target, CalendarRange, Wrench, ListChecks,
 } from "lucide-react";
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis,
@@ -361,23 +362,24 @@ const ScoreGauge = ({ score, size = 120 }) => {
   );
 };
 
-const LockedOverlay = ({ onUnlock }) => (
+const LockedOverlay = ({ onUnlock, priceLabel = "CHF 49.99", message }) => (
   <div className="absolute inset-0 backdrop-blur-md bg-slate-900/60 rounded-xl flex flex-col items-center justify-center z-10 p-6">
     <Lock size={32} className="text-cyan-400 mb-3" />
-    <p className="text-white font-semibold text-center mb-1">Full analysis available in the detailed report</p>
+    <p className="text-white font-semibold text-center mb-1">{message || "Full analysis available in the detailed report"}</p>
     <p className="text-slate-400 text-sm text-center mb-4">Get expert recommendations with AI + human review</p>
     <button onClick={onUnlock}
       className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-6 py-2.5 rounded-lg font-medium hover:from-cyan-400 hover:to-blue-500 transition-all flex items-center gap-2">
-      Unlock Full Report — $49 <ArrowRight size={16} />
+      Unlock Full Report — {priceLabel} <ArrowRight size={16} />
     </button>
   </div>
 );
 
-const DimensionCard = ({ dim, isPaid, onUnlock }) => {
+const DimensionCard = ({ dim, isPaid, onUnlock, priceLabel }) => {
   const Ico = IconMap[dim.icon] || Globe;
   const color = getScoreColor(dim.score);
   const freeChecks = dim.checks.filter((c) => c.tier === "free");
   const paidChecks = dim.checks.filter((c) => c.tier === "paid");
+  const firstObs = dim.observations?.[0];
 
   return (
     <div className="relative bg-slate-800/80 rounded-xl border border-slate-700/50 p-5 hover:border-slate-600 transition-colors">
@@ -388,7 +390,7 @@ const DimensionCard = ({ dim, isPaid, onUnlock }) => {
           </div>
           <div>
             <h3 className="text-white font-semibold text-sm">{dim.dimension}. {dim.name}</h3>
-            <p className="text-slate-400 text-xs">Weight: {dim.weight * 100}%</p>
+            <p className="text-slate-400 text-xs">Weight: {dim.weight * 100}% · Confidence: {dim.confidence || "—"}</p>
           </div>
         </div>
         <div className="flex flex-col items-center">
@@ -399,6 +401,17 @@ const DimensionCard = ({ dim, isPaid, onUnlock }) => {
       <div className="w-full bg-slate-700 rounded-full h-2 mb-4">
         <div className="h-2 rounded-full transition-all duration-1000" style={{ width: `${dim.score}%`, background: color }} />
       </div>
+
+      {/* First observation as a free-tier taste; rest gated server-side */}
+      {firstObs && (
+        <div className="mb-3 pl-3 border-l-2 border-cyan-500/40">
+          <p className="text-xs text-slate-300 leading-relaxed">{firstObs}</p>
+          {!isPaid && dim.observations?.length === 1 && (
+            <p className="text-[10px] text-slate-500 mt-1 italic">+ further observations in the full report</p>
+          )}
+        </div>
+      )}
+
       {freeChecks.length > 0 && (
         <div className="space-y-2 mb-3">
           {freeChecks.map((c) => (
@@ -416,7 +429,7 @@ const DimensionCard = ({ dim, isPaid, onUnlock }) => {
       )}
       {paidChecks.length > 0 && (
         <div className="relative mt-2">
-          {!isPaid && <LockedOverlay onUnlock={onUnlock} />}
+          {!isPaid && <LockedOverlay onUnlock={onUnlock} priceLabel={priceLabel} message="Deep checks in the full report" />}
           <div className="space-y-2">
             {paidChecks.map((c) => (
               <div key={c.id} className="flex items-center justify-between text-sm">
@@ -432,13 +445,55 @@ const DimensionCard = ({ dim, isPaid, onUnlock }) => {
           </div>
         </div>
       )}
+
+      {/* Paid-only narrative + quick wins (paid tier only — these fields are stripped server-side for free) */}
+      {isPaid && dim.narrative && (
+        <div className="mt-4 pt-4 border-t border-slate-700/50">
+          <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest mb-2">Narrative</p>
+          <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-line">{dim.narrative}</p>
+        </div>
+      )}
+      {isPaid && dim.quickWins?.length > 0 && (
+        <div className="mt-3">
+          <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest mb-2">Quick Wins</p>
+          <ul className="space-y-1">
+            {dim.quickWins.map((w, i) => (
+              <li key={i} className="flex gap-2 text-xs text-slate-300">
+                <CheckCircle size={12} className="text-emerald-400 shrink-0 mt-0.5" />
+                <span>{w}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {isPaid && dim.prioritizedActions?.length > 0 && (
+        <div className="mt-3">
+          <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest mb-2">Prioritised Actions</p>
+          <div className="space-y-2">
+            {dim.prioritizedActions.map((a, i) => (
+              <div key={i} className="bg-slate-900/50 rounded-lg p-2.5 border border-slate-700/50">
+                <p className="text-xs text-slate-200 mb-1.5">{a.action}</p>
+                <div className="flex flex-wrap gap-1.5 text-[10px]">
+                  <span className="px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">Effort: <span className="font-semibold">{a.effort}</span></span>
+                  <span className="px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">Impact: <span className="font-semibold">{a.impact}</span></span>
+                  {a.estimatedTrafficLift && (
+                    <span className="px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300">{a.estimatedTrafficLift}</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-const PaymentModal = ({ onClose, url }) => {
+const PaymentModal = ({ onClose, url, localPrice }) => {
   const [email, setEmail] = useState("");
   const [step, setStep] = useState("details");
+  const priceLabel = localPrice ? formatPrice(localPrice) : "CHF 49.99";
+  const isLocalised = localPrice && localPrice.currency !== "CHF";
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -456,11 +511,12 @@ const PaymentModal = ({ onClose, url }) => {
               </div>
             </div>
             <div className="bg-slate-900/50 rounded-lg p-4 mb-4 space-y-2 text-sm text-slate-300">
-              <div className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-400" /> Full 6-dimension audit with evidence</div>
-              <div className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-400" /> Prioritised recommendations (impact vs effort)</div>
-              <div className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-400" /> JSON-LD code snippets ready to implement</div>
-              <div className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-400" /> Signature recommendation for AI citability</div>
-              <div className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-400" /> Delivered as a 10-page PDF within 48 hours</div>
+              <div className="flex items-center gap-2"><Sparkles size={14} className="text-cyan-400" /> Executive summary (3–5 paragraphs)</div>
+              <div className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-400" /> Full 6-dimension audit with narratives + quick wins</div>
+              <div className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-400" /> Prioritised actions (effort/impact/traffic-lift)</div>
+              <div className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-400" /> Competitor gap analysis + 30/60/90 day roadmap</div>
+              <div className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-400" /> Tool recommendations + JSON-LD code snippets</div>
+              <div className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-400" /> Delivered as a 16-page PDF within 48 hours</div>
             </div>
             <div className="text-sm text-slate-400 mb-2">URL to audit</div>
             <div className="bg-slate-900 rounded-lg p-3 text-cyan-400 text-sm mb-4 font-mono truncate">{url}</div>
@@ -472,9 +528,16 @@ const PaymentModal = ({ onClose, url }) => {
             </div>
             <button onClick={() => email && setStep("confirm")}
               className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white py-3 rounded-lg font-semibold hover:from-cyan-400 hover:to-blue-500 transition-all flex items-center justify-center gap-2">
-              <CreditCard size={18} /> Pay $49
+              <CreditCard size={18} /> Pay {priceLabel}
             </button>
-            <p className="text-slate-500 text-xs text-center mt-3">Secure payment via Stripe. You will not be charged until you confirm.</p>
+            <p className="text-slate-500 text-xs text-center mt-3">
+              Secure payment via Stripe. You will not be charged until you confirm.
+            </p>
+            {isLocalised && (
+              <p className="text-slate-600 text-[10px] text-center mt-1">
+                Localised display from CHF 49 · charged in CHF at today's rate
+              </p>
+            )}
           </>
         ) : (
           <div className="text-center py-6">
@@ -592,6 +655,17 @@ export default function App() {
   const [pdfGenerating, setPdfGenerating] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
   const [postContent, setPostContent] = useState('');
+  const [localPrice, setLocalPrice] = useState(null);
+
+  // Fetch localised price once on mount (cached after first call)
+  useEffect(() => {
+    let cancelled = false;
+    getLocalPrice().then((p) => { if (!cancelled) setLocalPrice(p); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const priceLabel = localPrice ? formatPrice(localPrice) : "CHF 49.99";
+  const isLocalisedPrice = localPrice && localPrice.currency !== "CHF";
 
   const loadPost = async (post) => {
     setSelectedPost(post);
@@ -675,7 +749,7 @@ export default function App() {
             <button onClick={() => setPage("pricing")} className="text-slate-400 hover:text-white transition-colors">Pricing</button>
             <button onClick={() => setShowPayment(true)}
               className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:from-cyan-400 hover:to-blue-500">
-              Get Full Report
+              Get Full Report — {priceLabel}
             </button>
           </div>
           <button className="md:hidden text-slate-400" onClick={() => setMenuOpen(!menuOpen)}><Menu size={24} /></button>
@@ -742,10 +816,10 @@ export default function App() {
           <section className="max-w-4xl mx-auto px-4 pb-16">
             <div className="bg-gradient-to-br from-slate-800 to-slate-800/50 rounded-2xl border border-slate-700 p-8 md:p-12 text-center">
               <h2 className="text-2xl font-bold text-white mb-3">Go deeper with a bespoke report</h2>
-              <p className="text-slate-400 mb-6 max-w-lg mx-auto">Our detailed 10-page PDF combines AI analysis with human expert review — complete with prioritised fixes, code snippets, and a signature recommendation.</p>
+              <p className="text-slate-400 mb-6 max-w-lg mx-auto">Our detailed 16-page PDF combines AI analysis with human expert review — complete with executive summary, per-dimension narratives, competitor gaps, a 30/60/90 day roadmap, prioritised fixes with traffic-lift estimates, and a signature recommendation.</p>
               <button onClick={() => setShowPayment(true)}
                 className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-8 py-3 rounded-xl font-semibold hover:from-cyan-400 hover:to-blue-500 transition-all inline-flex items-center gap-2">
-                Order Full Report — $49 <ArrowRight size={18} />
+                Order Full Report — {priceLabel} <ArrowRight size={18} />
               </button>
             </div>
           </section>
@@ -837,7 +911,7 @@ export default function App() {
                 onClick={() => setShowPDFModal(true)}
                 className="flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:from-cyan-400 hover:to-blue-500 transition-all shrink-0"
               >
-                <FileText size={16} /> Export 10-Page PDF
+                <FileText size={16} /> Export 16-Page PDF
               </button>
             )}
           </div>
@@ -865,10 +939,42 @@ export default function App() {
             </div>
           </div>
 
+          {/* FREE PREVIEW BADGE */}
+          {!isAdmin && results.tier === "free" && (
+            <div className="flex items-center justify-between flex-wrap gap-3 mb-6 px-4 py-3 rounded-xl bg-amber-500/5 border border-amber-500/20">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-bold uppercase tracking-widest border border-amber-500/30">
+                  Free Preview
+                </span>
+                <span className="text-xs text-slate-300">
+                  Headline scores + one observation per dimension. The full audit unlocks narratives, code fixes, a 30/60/90 day roadmap, competitor gaps and a 16-page PDF.
+                </span>
+              </div>
+              <button
+                onClick={() => setShowPayment(true)}
+                className="text-cyan-400 text-xs font-bold hover:text-cyan-300 whitespace-nowrap"
+              >
+                Unlock {priceLabel} →
+              </button>
+            </div>
+          )}
+
+          {/* EXECUTIVE SUMMARY (paid) */}
+          {isAdmin && results.executiveSummary && (
+            <div className="bg-slate-800/80 rounded-xl border border-slate-700/50 p-6 mb-6">
+              <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <Sparkles size={20} className="text-cyan-400" /> Executive Summary
+              </h3>
+              <div className="space-y-3 text-sm text-slate-300 leading-relaxed">
+                {results.executiveSummary.split(/\n\n+/).map((p, i) => <p key={i}>{p}</p>)}
+              </div>
+            </div>
+          )}
+
           {/* DIMENSION CARDS */}
           <div className="grid md:grid-cols-2 gap-5 mb-8">
             {results.dimensions.map((d) => (
-              <DimensionCard key={d.id} dim={d} isPaid={isAdmin} onUnlock={() => setShowPayment(true)} />
+              <DimensionCard key={d.id} dim={d} isPaid={isAdmin} onUnlock={() => setShowPayment(true)} priceLabel={priceLabel} />
             ))}
           </div>
 
@@ -891,7 +997,7 @@ export default function App() {
 
           {/* CRITICAL ISSUES & SIGNATURE REC — locked for public, open for admin */}
           <div className="relative bg-slate-800/80 rounded-xl border border-slate-700/50 p-6 mb-6">
-            {!isAdmin && <LockedOverlay onUnlock={() => setShowPayment(true)} />}
+            {!isAdmin && <LockedOverlay onUnlock={() => setShowPayment(true)} priceLabel={priceLabel} message="Code-level fixes in the full report" />}
             <h3 className="text-lg font-bold text-white mb-4">Critical Issues & Code Fixes</h3>
             <div className={`space-y-4 ${!isAdmin ? "opacity-40" : ""}`}>
               {(results.criticalIssues || []).map((issue, i) => (
@@ -900,7 +1006,7 @@ export default function App() {
                     <XCircle size={14} className="text-red-400" /> {issue.title}
                   </p>
                   <p className="text-slate-400 text-xs mb-2">{issue.description}</p>
-                  <p className="text-slate-300 text-xs mb-2">{issue.fix}</p>
+                  {issue.fix && !issue.locked && <p className="text-slate-300 text-xs mb-2">{issue.fix}</p>}
                   {issue.codeSnippet && (
                     <pre className="bg-slate-950 text-cyan-300 text-xs p-3 rounded-lg overflow-x-auto mt-2 whitespace-pre-wrap">{issue.codeSnippet}</pre>
                   )}
@@ -908,6 +1014,114 @@ export default function App() {
               ))}
             </div>
           </div>
+
+          {/* COMPETITOR GAP ANALYSIS (paid) */}
+          {isAdmin && results.competitorInsights && (
+            <div className="bg-slate-800/80 rounded-xl border border-slate-700/50 p-6 mb-6">
+              <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <Target size={20} className="text-cyan-400" /> Competitor Gap Analysis
+              </h3>
+              <p className="text-sm italic bg-cyan-500/5 border-l-4 border-cyan-500 px-4 py-3 rounded-r-lg mb-4 text-slate-200">
+                {results.competitorInsights.benchmark}
+              </p>
+              <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest mb-3">Identified gaps</p>
+              <div className="space-y-2">
+                {(results.competitorInsights.gaps || []).map((gap, i) => (
+                  <div key={i} className="flex gap-3 p-3 bg-slate-900/50 rounded-lg">
+                    <div className="shrink-0 w-6 h-6 bg-cyan-500/10 rounded-md flex items-center justify-center text-cyan-400 text-xs font-bold">
+                      {i + 1}
+                    </div>
+                    <p className="text-sm text-slate-300 leading-snug">{gap}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 30/60/90 DAY ROADMAP (paid) */}
+          {isAdmin && results.roadmap && (
+            <div className="bg-slate-800/80 rounded-xl border border-slate-700/50 p-6 mb-6">
+              <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <CalendarRange size={20} className="text-cyan-400" /> 30 / 60 / 90 Day Roadmap
+              </h3>
+              <div className="grid md:grid-cols-3 gap-4">
+                {[
+                  { label: "0–30 Days", items: results.roadmap.thirtyDay, accent: "border-cyan-500 text-cyan-400" },
+                  { label: "31–60 Days", items: results.roadmap.sixtyDay, accent: "border-amber-500 text-amber-400" },
+                  { label: "61–90 Days", items: results.roadmap.ninetyDay, accent: "border-emerald-500 text-emerald-400" },
+                ].map((phase, i) => (
+                  <div key={i} className={`p-4 bg-slate-900/50 rounded-lg border-t-4 ${phase.accent}`}>
+                    <p className="text-[10px] uppercase font-black tracking-widest mb-3">{phase.label}</p>
+                    <ul className="space-y-2">
+                      {(phase.items || []).map((item, j) => (
+                        <li key={j} className="text-xs leading-snug text-slate-300 flex gap-2">
+                          <span className="text-cyan-400 shrink-0">▸</span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TOOL RECOMMENDATIONS (paid) */}
+          {isAdmin && results.toolRecommendations?.length > 0 && (
+            <div className="bg-slate-800/80 rounded-xl border border-slate-700/50 p-6 mb-6">
+              <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <Wrench size={20} className="text-cyan-400" /> Recommended Tools
+              </h3>
+              <div className="grid md:grid-cols-2 gap-3">
+                {results.toolRecommendations.map((tool, i) => (
+                  <div key={i} className="p-3 bg-slate-900/50 rounded-lg border border-slate-700/50 text-sm leading-snug text-slate-300">
+                    {tool}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* WHAT'S LOCKED — teaser for free users */}
+          {!isAdmin && results.tier === "free" && (
+            <div className="bg-gradient-to-br from-slate-800 to-slate-900/60 rounded-xl border border-cyan-500/20 p-6 mb-6">
+              <h3 className="text-lg font-bold text-white mb-1 flex items-center gap-2">
+                <Lock size={18} className="text-cyan-400" /> What's in the full report
+              </h3>
+              <p className="text-slate-400 text-xs mb-5">Eight sections beyond this preview, written by AI and reviewed by a human expert.</p>
+              <div className="grid md:grid-cols-2 gap-3 mb-5">
+                {[
+                  { Ico: Sparkles, title: "Executive Summary", desc: "C-suite narrative covering risk and top-3 opportunities" },
+                  { Ico: FileText, title: "Per-dimension Narratives", desc: "2-3 paragraph analysis tied to specific page elements" },
+                  { Ico: ListChecks, title: "Quick Wins", desc: "Concrete changes implementable in under one working day" },
+                  { Ico: TrendingUp, title: "Prioritised Actions", desc: "Effort/Impact/Traffic-lift ratings for every recommendation" },
+                  { Ico: Target, title: "Competitor Gap Analysis", desc: "Industry benchmark + 4-6 specific gaps versus that benchmark" },
+                  { Ico: CalendarRange, title: "30/60/90 Day Roadmap", desc: "Phased action plan, 4-6 priorities per phase" },
+                  { Ico: Wrench, title: "Tool Recommendations", desc: "6-10 named tools tied to issues found on your site" },
+                  { Ico: FileText, title: "16-page PDF Report", desc: "Editable, brandable, ready to hand to a client" },
+                ].map((f, i) => (
+                  <div key={i} className="flex gap-3 p-3 bg-slate-900/50 rounded-lg border border-slate-700/40">
+                    <f.Ico size={16} className="text-cyan-400 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-semibold text-white mb-0.5">{f.title}</p>
+                      <p className="text-[11px] text-slate-400 leading-snug">{f.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => setShowPayment(true)}
+                className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white py-3 rounded-lg font-semibold hover:from-cyan-400 hover:to-blue-500 transition-all flex items-center justify-center gap-2"
+              >
+                Unlock Full Report — {priceLabel} <ArrowRight size={16} />
+              </button>
+              {isLocalisedPrice && (
+                <p className="text-slate-500 text-[10px] text-center mt-2">
+                  Pegged to CHF 49 · charged in CHF at today's rate
+                </p>
+              )}
+            </div>
+          )}
 
           {results.signatureRecommendation && isAdmin && (
             <div className="bg-gradient-to-br from-cyan-500/10 to-blue-600/10 rounded-xl border border-cyan-500/30 p-6 mb-10">
@@ -992,13 +1206,18 @@ export default function App() {
           <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
             <div className="bg-slate-800/80 rounded-xl border border-slate-700/50 p-6">
               <h3 className="text-white font-bold text-xl mb-1">Free Audit</h3>
-              <p className="text-3xl font-bold text-white mb-4">$0</p>
+              <p className="text-3xl font-bold text-white mb-1">{localPrice ? `${localPrice.symbol}0` : "$0"}</p>
+              <p className="text-slate-400 text-xs mb-4">A real taste of the audit engine</p>
               <ul className="space-y-2 text-sm text-slate-300 mb-6">
                 <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-400" /> Overall score across 6 dimensions</li>
-                <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-400" /> Free-tier check results</li>
-                <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-400" /> Top 3 quick-win recommendations</li>
+                <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-400" /> Per-dimension score + confidence rating</li>
+                <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-400" /> One observation per dimension</li>
+                <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-400" /> Free-tier check results (16 checks)</li>
+                <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-400" /> Top critical issue + improvement (titles)</li>
                 <li className="flex items-center gap-2"><XCircle size={14} className="text-slate-600" /> Deep checks (E-E-A-T, content quality)</li>
+                <li className="flex items-center gap-2"><XCircle size={14} className="text-slate-600" /> Narrative analysis & quick wins</li>
                 <li className="flex items-center gap-2"><XCircle size={14} className="text-slate-600" /> Code snippets & implementation guides</li>
+                <li className="flex items-center gap-2"><XCircle size={14} className="text-slate-600" /> 16-page PDF report</li>
               </ul>
               <button onClick={() => setPage("home")}
                 className="w-full border border-slate-600 text-white py-2.5 rounded-lg font-medium hover:bg-slate-700 transition-colors">Run Free Audit</button>
@@ -1006,18 +1225,30 @@ export default function App() {
             <div className="bg-gradient-to-br from-slate-800 to-slate-800/80 rounded-xl border border-cyan-500/30 p-6 relative">
               <div className="absolute -top-3 right-4 px-3 py-0.5 bg-cyan-500 text-white text-xs font-bold rounded-full">RECOMMENDED</div>
               <h3 className="text-white font-bold text-xl mb-1">Full Report</h3>
-              <p className="text-3xl font-bold text-white mb-1">$49 <span className="text-sm font-normal text-slate-400">one-off</span></p>
-              <p className="text-slate-400 text-xs mb-4">10-page PDF · AI + human review · delivered in 48h</p>
+              <p className="text-3xl font-bold text-white mb-1">
+                {priceLabel} <span className="text-sm font-normal text-slate-400">one-off</span>
+              </p>
+              <p className="text-slate-400 text-xs mb-1">16-page PDF · AI + human review · delivered in 48h</p>
+              {isLocalisedPrice && (
+                <p className="text-slate-500 text-[10px] mb-4">Pegged to CHF 49 · charged in CHF at today's rate</p>
+              )}
+              {!isLocalisedPrice && <div className="mb-4" />}
               <ul className="space-y-2 text-sm text-slate-300 mb-6">
                 <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-400" /> Everything in the free audit</li>
+                <li className="flex items-center gap-2"><Sparkles size={14} className="text-cyan-400" /> Executive summary (3-5 paragraphs)</li>
                 <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-400" /> All paid checks unlocked</li>
+                <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-400" /> Per-dimension narratives + quick wins</li>
+                <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-400" /> Prioritised actions with traffic-lift estimates</li>
                 <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-400" /> 3 critical issues with code fixes</li>
                 <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-400" /> 5 improvements ranked by impact/effort</li>
+                <li className="flex items-center gap-2"><Target size={14} className="text-cyan-400" /> Competitor gap analysis</li>
+                <li className="flex items-center gap-2"><CalendarRange size={14} className="text-cyan-400" /> 30 / 60 / 90 day roadmap</li>
+                <li className="flex items-center gap-2"><Wrench size={14} className="text-cyan-400" /> Tool recommendations tied to your issues</li>
                 <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-400" /> Signature AI citability recommendation</li>
                 <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-400" /> Human expert review and sign-off</li>
               </ul>
               <button onClick={() => setShowPayment(true)}
-                className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white py-2.5 rounded-lg font-semibold hover:from-cyan-400 hover:to-blue-500 transition-all">Order Report</button>
+                className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white py-2.5 rounded-lg font-semibold hover:from-cyan-400 hover:to-blue-500 transition-all">Order Report — {priceLabel}</button>
             </div>
           </div>
         </div>
@@ -1038,7 +1269,7 @@ export default function App() {
         </div>
       </footer>
 
-      {showPayment && <PaymentModal onClose={() => setShowPayment(false)} url={auditUrl || url || "https://example.com"} />}
+      {showPayment && <PaymentModal onClose={() => setShowPayment(false)} url={auditUrl || url || "https://example.com"} localPrice={localPrice} />}
 
       {/* ── DEV ADMIN PANEL — localhost only ── */}
       {IS_LOCAL && <DevAdminPanel />}

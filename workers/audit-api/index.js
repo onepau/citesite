@@ -98,7 +98,7 @@ const CORS_HEADERS = {
 
 
 
-const AUDIT_SYSTEM_PROMPT = `You are CiteSite's audit engine. You analyse web pages for SEO and Generative Engine Optimisation (GEO) readiness.
+const AUDIT_SYSTEM_PROMPT = `You are CiteSite's principal-level audit consultant — 15 years of experience producing consulting-grade GEO/SEO reports indistinguishable from a CHF 500 paid audit. Prioritise depth over brevity. Every recommendation must include effort (Low/Medium/High), impact (Low/Medium/High), and an estimated traffic or ranking lift where evidence permits. Use British English throughout. Ground every claim in evidence fetched from the page; if evidence is missing, say so explicitly rather than inferring.
 
 STEP 1 — FETCH AND INSPECT
 The user will provide a URL and the HTML source of a page. Before scoring, determine:
@@ -160,14 +160,24 @@ Weighted average of the six dimensions, rounded to the nearest integer.
 
 STEP 4 — FINDINGS AND RECOMMENDATIONS
 - Three critical issues (highest-impact blockers), each with a concrete fix and, where possible, a code snippet.
-- Five specific improvements ranked by impact-to-effort ratio, each tied to an observation from Step 2.
+- Five specific improvements ranked by impact-to-effort ratio, each tied to an observation from Step 2. Each includes an estimatedTrafficLift where evidence permits (e.g. "+5-15% organic over 90 days").
 - One signature recommendation: the single change that would most improve AI citability for this page.
 
+STEP 5 — CONSULTING-GRADE DEPTH (mandatory)
+For each of the six dimensions in STEP 2, additionally produce a "narrative", "quickWins", and "prioritizedActions":
+- narrative: 2-3 paragraphs of prose analysis referencing specific page elements you observed
+- quickWins: 3-5 changes implementable in under one working day
+- prioritizedActions: 4-8 actions, each with { action, effort: Low|Medium|High, impact: Low|Medium|High, estimatedTrafficLift? }
+
+Also produce these top-level fields:
+- executiveSummary: 3-5 paragraphs suitable for a C-suite reader, covering what was found, the critical risk, and the top-3 opportunities
+- competitorInsights: { benchmark: one sentence naming an industry/Top-10 benchmark relevant to this content type, gaps: 4-6 specific gaps versus that benchmark }
+- roadmap: { thirtyDay, sixtyDay, ninetyDay } — each an array of 4-6 prioritised actions
+- toolRecommendations: 6-10 specific named tools (e.g. "Screaming Frog — crawl audit") each with a one-line rationale tied to issues found on this site
+
 CONSTRAINTS
-- Ground every observation in evidence from the fetched page. If evidence is missing, say so explicitly.
 - Do not estimate Domain Authority, backlink counts, niche-relevance percentages, or anchor text distribution.
 - Use specific element names, property names, and HTML or JSON-LD snippets in recommendations.
-- Use British English throughout.
 
 RESPONSE FORMAT
 Respond ONLY with valid JSON matching this structure (no markdown, no preamble):
@@ -193,35 +203,40 @@ Respond ONLY with valid JSON matching this structure (no markdown, no preamble):
       "weight": 0.20,
       "score": 72,
       "confidence": "high",
-      "observations": [
-        "Observation 1...",
-        "Observation 2..."
-      ],
+      "observations": ["Observation 1…", "Observation 2…"],
       "checks": [
-        { "id": "ssr-csr", "name": "Server-side rendering", "score": 18, "maxPoints": 20, "detail": "..." },
-        { "id": "robots-ai", "name": "AI bot directives", "score": 5, "maxPoints": 20, "detail": "..." }
+        { "id": "ssr-csr", "name": "Server-side rendering", "score": 18, "maxPoints": 20, "detail": "…" }
+      ],
+      "narrative": "Two to three paragraphs of analysis tied to elements found on the page…",
+      "quickWins": ["…", "…"],
+      "prioritizedActions": [
+        { "action": "…", "effort": "Medium", "impact": "High", "estimatedTrafficLift": "+10-15% organic over 90 days" }
       ]
     }
   ],
   "overallScore": 65,
+  "executiveSummary": "Three to five paragraphs of C-suite summary…",
   "criticalIssues": [
-    { "title": "...", "description": "...", "fix": "...", "codeSnippet": "..." }
+    { "title": "…", "description": "…", "fix": "…", "codeSnippet": "…" }
   ],
   "improvements": [
-    { "rank": 1, "dimension": "A", "title": "...", "description": "...", "impact": "high", "effort": "low" }
+    { "rank": 1, "dimension": "A", "title": "…", "description": "…", "impact": "high", "effort": "low", "estimatedTrafficLift": "+5-10%" }
   ],
-  "signatureRecommendation": {
-    "title": "...",
-    "description": "...",
-    "codeSnippet": "..."
-  }
+  "signatureRecommendation": { "title": "…", "description": "…", "codeSnippet": "…" },
+  "competitorInsights": {
+    "benchmark": "Top-10 ranking pages in this niche average 1,800 words and 8 H2 sections.",
+    "gaps": ["…", "…"]
+  },
+  "roadmap": {
+    "thirtyDay": ["…", "…"],
+    "sixtyDay": ["…", "…"],
+    "ninetyDay": ["…", "…"]
+  },
+  "toolRecommendations": [
+    "Screaming Frog — crawl audit to surface the missing canonical tags identified above",
+    "Ahrefs — backlink graph analysis to verify the citation coverage gap"
+  ]
 }`;
-
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, X-Admin-Key, Cf-Access-Jwt-Assertion"
-};
 
 async function fetchTargetPage(url) {
   try {
@@ -326,35 +341,92 @@ async function runAudit(url, env) {
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   Free-tier filter — softened ~30/70 split
+   ───────────────────────────────────────────────────────────────────
+   Free users see real value across all six dimensions (score, one
+   observation, free-check breakdown), the technical inspection
+   block, the headline of one critical issue and one improvement.
+   Everything that constitutes the consulting upgrade — narratives,
+   quickWins, prioritizedActions, executiveSummary, competitor gaps,
+   roadmap, tool recommendations, full critical-fix code, signature
+   recommendation — is stripped server-side.
+   ═══════════════════════════════════════════════════════════════════ */
+
+const FREE_CHECK_IDS = new Set([
+  "ssr-csr", "sitemap", "canonical", "https", "mobile",
+  "semantic-html", "heading-hierarchy", "lists-tables",
+  "jsonld-present", "og-tags", "twitter-card",
+  "title-tag", "meta-desc", "h1", "img-alt", "url-structure",
+]);
+
+const LOCKED_TEXT = "Unlock with full report";
+
 function filterFreeTier(results) {
   if (results.error) return results;
 
-  const freeDimIds = ["crawlability", "content-structure", "technical-seo"];
-  const filteredDimensions = results.dimensions.map((dim) => {
-    const isFree = freeDimIds.includes(dim.id);
-    return {
-      ...dim,
-      checks: dim.checks.map((c) => {
-        const checkFree =
-          isFree &&
-          ["ssr-csr", "sitemap", "canonical", "https", "mobile",
-           "semantic-html", "heading-hierarchy", "lists-tables",
-           "jsonld-present", "og-tags", "twitter-card",
-           "title-tag", "meta-desc", "h1", "img-alt", "url-structure"
-          ].includes(c.id);
-        return checkFree ? c : { ...c, score: null, detail: "Unlock with full report" };
-      }),
-      observations: isFree ? dim.observations : ["Unlock with full report"],
-    };
-  });
+  const filteredDimensions = (results.dimensions || []).map((dim) => ({
+    ...dim,
+    // Score, name, weight, dimension letter, confidence stay visible.
+    // Show only the FIRST observation as a taste; rest gated.
+    observations: Array.isArray(dim.observations) && dim.observations.length > 0
+      ? [dim.observations[0]]
+      : [],
+    // Free checks keep score+detail; paid checks are nulled.
+    checks: (dim.checks || []).map((c) =>
+      FREE_CHECK_IDS.has(c.id)
+        ? c
+        : { ...c, score: null, detail: LOCKED_TEXT, locked: true }
+    ),
+    // STEP 5 fields stripped entirely for free tier.
+    narrative: undefined,
+    quickWins: undefined,
+    prioritizedActions: undefined,
+  }));
+
+  // First critical issue: title + description visible; fix + code locked.
+  const firstIssue = results.criticalIssues?.[0];
+  const filteredCriticalIssues = firstIssue
+    ? [{
+        title: firstIssue.title,
+        description: firstIssue.description,
+        fix: LOCKED_TEXT,
+        codeSnippet: null,
+        locked: true,
+      }]
+    : [];
+
+  // First improvement: title + dimension visible; description/impact/effort locked.
+  const firstImprov = results.improvements?.[0];
+  const filteredImprovements = firstImprov
+    ? [{
+        rank: firstImprov.rank,
+        dimension: firstImprov.dimension,
+        title: firstImprov.title,
+        description: LOCKED_TEXT,
+        impact: null,
+        effort: null,
+        estimatedTrafficLift: null,
+        locked: true,
+      }]
+    : [];
 
   return {
     inspection: results.inspection,
     dimensions: filteredDimensions,
     overallScore: results.overallScore,
-    criticalIssues: [results.criticalIssues?.[0] || null].filter(Boolean),
-    improvements: [results.improvements?.[0] || null].filter(Boolean),
-    signatureRecommendation: { title: "Unlock with full report", description: "Order your bespoke audit to reveal the signature recommendation." },
+    executiveSummary: null,
+    criticalIssues: filteredCriticalIssues,
+    improvements: filteredImprovements,
+    signatureRecommendation: {
+      title: LOCKED_TEXT,
+      description: "Order your bespoke audit to reveal the signature recommendation.",
+      locked: true,
+    },
+    competitorInsights: null,
+    roadmap: null,
+    toolRecommendations: null,
+    tier: "free",
   };
 }
 
@@ -438,7 +510,10 @@ export default {
     }
 
     // Return full or filtered results
-    const output = (isFullEndpoint || isAdminRequest) ? results : filterFreeTier(results);
+    const isFull = isFullEndpoint || isAdminRequest;
+    const output = isFull
+      ? { ...results, tier: "paid" }
+      : filterFreeTier(results);
 
     return new Response(JSON.stringify({ auditId, ...output }), {
       headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
