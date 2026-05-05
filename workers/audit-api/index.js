@@ -492,21 +492,39 @@ export default {
       }
     }
 
+    // Validate Anthropic API key is configured
+    if (!env.ANTHROPIC_API_KEY) {
+      return new Response(JSON.stringify({ error: "Server not configured: ANTHROPIC_API_KEY missing" }), {
+        status: 500,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
     const results = await runAudit(body.url, env);
+
+    // Return error immediately if audit failed
+    if (results.error) {
+      return new Response(JSON.stringify(results), {
+        status: 400,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
 
     // Store audit in DB
     const auditId = crypto.randomUUID();
     try {
       await env.DB.prepare(
-        "INSERT INTO audits (id, order_id, url, results_json) VALUES (?, ?, ?, ?)"
+        "INSERT INTO audits (id, order_id, url, results_json, created_at) VALUES (?, ?, ?, ?, ?)"
       ).bind(
         auditId,
         body.orderId || null,
         body.url,
-        JSON.stringify(results)
+        JSON.stringify(results),
+        new Date().toISOString()
       ).run();
     } catch (e) {
       console.error("DB insert failed:", e);
+      // Don't fail the request, but log the error
     }
 
     // Return full or filtered results
