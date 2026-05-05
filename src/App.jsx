@@ -263,7 +263,7 @@ const getAccessJWT = () => {
   return match ? match[1] : null;
 };
 
-const callAuditAPI = async (url, isAdmin = false) => {
+const callAuditAPI = async (url, isAdmin = false, orderId = null) => {
   const headers = { "Content-Type": "application/json" };
   if (isAdmin) {
     if (IS_LOCAL) {
@@ -277,14 +277,15 @@ const callAuditAPI = async (url, isAdmin = false) => {
     }
   }
 
-  const endpoint = isAdmin
+  const isPaid = orderId !== null;
+  const endpoint = isPaid || isAdmin
     ? `${API_BASE}/api/audit/full`
     : `${API_BASE}/api/audit`;
 
   const res = await fetch(endpoint, {
     method: "POST",
     headers,
-    body: JSON.stringify({ url }),
+    body: JSON.stringify({ url, ...(orderId && { orderId }) }),
   });
 
   if (!res.ok) {
@@ -509,7 +510,9 @@ const PaymentModal = ({ onClose, url, localPrice }) => {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Checkout creation failed');
-      if (data.checkoutUrl) {
+      if (data.checkoutUrl && data.orderId) {
+        // Store orderId so we can load full audit after payment
+        sessionStorage.setItem('pendingOrderId', data.orderId);
         // redirect to Stripe Checkout
         window.location.href = data.checkoutUrl;
         return;
@@ -687,6 +690,8 @@ export default function App() {
   const [selectedPost, setSelectedPost] = useState(null);
   const [postContent, setPostContent] = useState('');
   const [localPrice, setLocalPrice] = useState(null);
+  const [orderId, setOrderId] = useState(null);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
 
   // Fetch localised price once on mount (cached after first call)
   useEffect(() => {
@@ -694,6 +699,44 @@ export default function App() {
     getLocalPrice().then((p) => { if (!cancelled) setLocalPrice(p); });
     return () => { cancelled = true; };
   }, []);
+
+  // Check for payment success in URL params
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const checkoutSuccess = params.get('checkout') === 'success';
+      const storedOrderId = sessionStorage.getItem('pendingOrderId');
+
+      if (checkoutSuccess && storedOrderId) {
+        setPaymentSuccess(true);
+        setOrderId(storedOrderId);
+        sessionStorage.removeItem('pendingOrderId');
+        // Clear URL params for cleaner history
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, []);
+
+  // Auto-load full audit when payment succeeds
+  useEffect(() => {
+    if (paymentSuccess && orderId && auditUrl) {
+      const loadFullAudit = async () => {
+        setLoading(true);
+        setAuditError(null);
+        try {
+          const data = await callAuditAPI(auditUrl, false, orderId);
+          setResults(data);
+          setPage("results");
+          setShowPayment(false);
+        } catch (err) {
+          setAuditError(err.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+      loadFullAudit();
+    }
+  }, [paymentSuccess, orderId, auditUrl]);
 
   const priceLabel = localPrice ? formatPrice(localPrice) : "CHF 49.99";
   const isLocalisedPrice = localPrice && localPrice.currency !== "CHF";
