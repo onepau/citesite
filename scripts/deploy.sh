@@ -44,26 +44,45 @@ case $choice in
         echo -e "${YELLOW}Setting up Stripe secrets...${NC}"
         read -sp "Enter STRIPE_SECRET_KEY (sk_test_...): " stripe_key
         echo ""
-        echo "$stripe_key" | wrangler secret put STRIPE_SECRET_KEY
-        echo -e "${GREEN}✓ STRIPE_SECRET_KEY set${NC}"
+
+        # Set in audit-api
+        cd workers/audit-api && echo "$stripe_key" | wrangler secret put STRIPE_SECRET_KEY && cd - > /dev/null
+        echo -e "${GREEN}✓ STRIPE_SECRET_KEY set in audit-api${NC}"
+
+        # Set in checkout
+        cd workers/checkout && echo "$stripe_key" | wrangler secret put STRIPE_SECRET_KEY && cd - > /dev/null
+        echo -e "${GREEN}✓ STRIPE_SECRET_KEY set in checkout${NC}"
+
+        # Set in webhook
+        cd workers/stripe-webhook && echo "$stripe_key" | wrangler secret put STRIPE_SECRET_KEY && cd - > /dev/null
+        echo -e "${GREEN}✓ STRIPE_SECRET_KEY set in webhook${NC}"
 
         read -sp "Enter STRIPE_WEBHOOK_SECRET (whsec_...): " webhook_secret
         echo ""
-        echo "$webhook_secret" | wrangler secret put STRIPE_WEBHOOK_SECRET
-        echo -e "${GREEN}✓ STRIPE_WEBHOOK_SECRET set${NC}"
+
+        cd workers/audit-api && echo "$webhook_secret" | wrangler secret put STRIPE_WEBHOOK_SECRET && cd - > /dev/null
+        echo -e "${GREEN}✓ STRIPE_WEBHOOK_SECRET set in audit-api${NC}"
+
+        cd workers/checkout && echo "$webhook_secret" | wrangler secret put STRIPE_WEBHOOK_SECRET && cd - > /dev/null
+        echo -e "${GREEN}✓ STRIPE_WEBHOOK_SECRET set in checkout${NC}"
+
+        cd workers/stripe-webhook && echo "$webhook_secret" | wrangler secret put STRIPE_WEBHOOK_SECRET && cd - > /dev/null
+        echo -e "${GREEN}✓ STRIPE_WEBHOOK_SECRET set in webhook${NC}"
 
         echo ""
         echo -e "${YELLOW}Setting up Anthropic API key...${NC}"
         read -sp "Enter ANTHROPIC_API_KEY (sk-ant-...): " anthropic_key
         echo ""
-        echo "$anthropic_key" | wrangler secret put ANTHROPIC_API_KEY
-        echo -e "${GREEN}✓ ANTHROPIC_API_KEY set${NC}"
+
+        cd workers/audit-api && echo "$anthropic_key" | wrangler secret put ANTHROPIC_API_KEY && cd - > /dev/null
+        echo -e "${GREEN}✓ ANTHROPIC_API_KEY set in audit-api${NC}"
 
         echo ""
         echo -e "${YELLOW}Setting up admin key...${NC}"
         read -p "Enter ADMIN_KEY (random string): " admin_key
-        echo "$admin_key" | wrangler secret put ADMIN_KEY
-        echo -e "${GREEN}✓ ADMIN_KEY set${NC}"
+
+        cd workers/audit-api && echo "$admin_key" | wrangler secret put ADMIN_KEY && cd - > /dev/null
+        echo -e "${GREEN}✓ ADMIN_KEY set in audit-api${NC}"
 
         echo ""
         echo -e "${GREEN}✓ All secrets configured!${NC}"
@@ -118,18 +137,30 @@ case $choice in
         echo -e "${BLUE}Step 1: Setting up secrets${NC}"
         read -sp "Enter STRIPE_SECRET_KEY (sk_test_...): " stripe_key
         echo ""
-        echo "$stripe_key" | wrangler secret put STRIPE_SECRET_KEY
+
+        cd workers/audit-api && echo "$stripe_key" | wrangler secret put STRIPE_SECRET_KEY && cd - > /dev/null
+        cd workers/checkout && echo "$stripe_key" | wrangler secret put STRIPE_SECRET_KEY && cd - > /dev/null
+        cd workers/stripe-webhook && echo "$stripe_key" | wrangler secret put STRIPE_SECRET_KEY && cd - > /dev/null
+        echo -e "${GREEN}✓ STRIPE_SECRET_KEY set in all workers${NC}"
 
         read -sp "Enter STRIPE_WEBHOOK_SECRET (whsec_...): " webhook_secret
         echo ""
-        echo "$webhook_secret" | wrangler secret put STRIPE_WEBHOOK_SECRET
+
+        cd workers/audit-api && echo "$webhook_secret" | wrangler secret put STRIPE_WEBHOOK_SECRET && cd - > /dev/null
+        cd workers/checkout && echo "$webhook_secret" | wrangler secret put STRIPE_WEBHOOK_SECRET && cd - > /dev/null
+        cd workers/stripe-webhook && echo "$webhook_secret" | wrangler secret put STRIPE_WEBHOOK_SECRET && cd - > /dev/null
+        echo -e "${GREEN}✓ STRIPE_WEBHOOK_SECRET set in all workers${NC}"
 
         read -sp "Enter ANTHROPIC_API_KEY (sk-ant-...): " anthropic_key
         echo ""
-        echo "$anthropic_key" | wrangler secret put ANTHROPIC_API_KEY
 
-        read -p "Enter ADMIN_KEY: " admin_key
-        echo "$admin_key" | wrangler secret put ADMIN_KEY
+        cd workers/audit-api && echo "$anthropic_key" | wrangler secret put ANTHROPIC_API_KEY && cd - > /dev/null
+        echo -e "${GREEN}✓ ANTHROPIC_API_KEY set in audit-api${NC}"
+
+        read -p "Enter ADMIN_KEY (random string): " admin_key
+
+        cd workers/audit-api && echo "$admin_key" | wrangler secret put ADMIN_KEY && cd - > /dev/null
+        echo -e "${GREEN}✓ ADMIN_KEY set in audit-api${NC}"
 
         echo -e "${GREEN}✓ Secrets configured${NC}"
         echo ""

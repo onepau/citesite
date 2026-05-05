@@ -51,12 +51,31 @@ Expected output: `orders` table exists.
 
 ## Step 2: Set Worker Secrets
 
-Secrets are environment variables that should not be stored in code. Set them using Wrangler:
+Secrets are environment variables that should not be stored in code. Set them using Wrangler **from within each worker directory**.
 
-### 2.1 Stripe Secrets
+### 2.1 Stripe Secrets (audit-api, checkout, stripe-webhook)
 
 ```bash
+# First, go to audit-api worker
+cd workers/audit-api
+
 # Get these from https://dashboard.stripe.com/apikeys
+npx wrangler secret put STRIPE_SECRET_KEY
+# Paste: sk_test_...
+
+npx wrangler secret put STRIPE_WEBHOOK_SECRET
+# Paste: whsec_test_...
+
+# Repeat for checkout worker
+cd ../checkout
+npx wrangler secret put STRIPE_SECRET_KEY
+# Paste: sk_test_...
+
+npx wrangler secret put STRIPE_WEBHOOK_SECRET
+# Paste: whsec_test_...
+
+# Repeat for stripe-webhook worker
+cd ../stripe-webhook
 npx wrangler secret put STRIPE_SECRET_KEY
 # Paste: sk_test_...
 
@@ -64,30 +83,45 @@ npx wrangler secret put STRIPE_WEBHOOK_SECRET
 # Paste: whsec_test_...
 ```
 
-### 2.2 Anthropic API Key
+### 2.2 Anthropic API Key (audit-api only)
 
 ```bash
+cd workers/audit-api
+
 # Get from https://console.anthropic.com/
 npx wrangler secret put ANTHROPIC_API_KEY
 # Paste: sk-ant-...
 ```
 
-### 2.3 Admin Key (for /admin-audit access)
+### 2.3 Admin Key (audit-api only)
 
 ```bash
+cd workers/audit-api
+
 # Generate a random, secure key
 npx wrangler secret put ADMIN_KEY
 # Paste: a-secure-random-string
+# Or generate: openssl rand -hex 32
 ```
 
-### 2.4 Cloudflare Access (Optional, if using Zero Trust)
+### 2.4 Cloudflare Access (Optional, audit-api only)
 
 ```bash
+cd workers/audit-api
+
 npx wrangler secret put CF_ACCESS_TEAM_DOMAIN
 # Paste: your-team-name
 
 npx wrangler secret put CF_ACCESS_AUD
 # Paste: your-app-aud-tag-from-zero-trust-dashboard
+```
+
+### 2.5 Verify Secrets Were Set
+
+```bash
+# From within a worker directory
+cd workers/audit-api
+npx wrangler secret list
 ```
 
 ---

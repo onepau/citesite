@@ -84,23 +84,41 @@ scripts/deploy.sh
 
 ### Manual Setup
 
+**⚠️ Important:** Secrets must be set from **within each worker's directory**, not from the root.
+
 ```bash
-# Set Stripe secrets
+# Set Stripe secrets (in audit-api, checkout, and webhook)
+cd workers/audit-api
 npx wrangler secret put STRIPE_SECRET_KEY
 # Paste: sk_test_... (from Stripe Dashboard)
 
 npx wrangler secret put STRIPE_WEBHOOK_SECRET
 # Paste: whsec_... (from Stripe Webhook settings)
 
-# Set Anthropic API key
 npx wrangler secret put ANTHROPIC_API_KEY
 # Paste: sk-ant-... (from Anthropic Console)
 
-# Set admin key (generate random)
 npx wrangler secret put ADMIN_KEY
 # Paste: <generate with: openssl rand -hex 32>
 
-# Optional: Set Cloudflare Access (if using Zero Trust)
+# Also set in checkout worker
+cd ../checkout
+npx wrangler secret put STRIPE_SECRET_KEY
+# Paste: sk_test_...
+
+npx wrangler secret put STRIPE_WEBHOOK_SECRET
+# Paste: whsec_...
+
+# Also set in webhook worker
+cd ../stripe-webhook
+npx wrangler secret put STRIPE_SECRET_KEY
+# Paste: sk_test_...
+
+npx wrangler secret put STRIPE_WEBHOOK_SECRET
+# Paste: whsec_...
+
+# Optional: Set Cloudflare Access (audit-api only, if using Zero Trust)
+cd ../audit-api
 npx wrangler secret put CF_ACCESS_TEAM_DOMAIN
 # Paste: your-team-name
 
