@@ -246,7 +246,7 @@ async function fetchTargetPage(url) {
     });
     const html = await res.text();
     const status = res.status;
-    return { html: html.slice(0, 60000), status, finalUrl: res.url };
+    return { html: html.slice(0, 30000), status, finalUrl: res.url };
   } catch (err) {
     return { html: null, status: 0, finalUrl: url, error: err.message };
   }
