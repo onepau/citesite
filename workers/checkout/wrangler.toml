@@ -1,0 +1,20 @@
+name = "citesite-checkout"
+main = "index.js"
+compatibility_date = "2026-04-24"
+routes = [
+  { pattern = "api.citesite.net/api/checkout", zone_name = "citesite.net" }
+]
+
+[vars]
+PRICE_CHF_CENTS = "4999"
+PRICE_CURRENCY = "chf"
+PUBLIC_SITE_URL = "https://citesite.net"
+STRIPE_PRODUCT_NAME = "CiteSite Full Report"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "citesite-db"
+database_id = "c3773f9a-5b71-4095-9b48-2131eea61eaf"
+
+# Secrets (set with: npx wrangler secret put SECRET_NAME)
+# STRIPE_SECRET_KEY

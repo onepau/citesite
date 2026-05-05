@@ -1,10 +1,9 @@
-name = "citesite-api"
+name = "citesite-webhook"
 main = "index.js"
 compatibility_date = "2026-04-24"
-
-[vars]
-ANTHROPIC_MODEL = "claude-sonnet-4-20250514"
-CITESITE_URL = "https://citesite.net"
+routes = [
+  { pattern = "webhook.citesite.net/*", zone_name = "citesite.net" }
+]
 
 [[d1_databases]]
 binding = "DB"
@@ -12,7 +11,4 @@ database_name = "citesite-db"
 database_id = "c3773f9a-5b71-4095-9b48-2131eea61eaf"
 
 # Secrets (set with: npx wrangler secret put SECRET_NAME)
-# ANTHROPIC_API_KEY
-# ADMIN_KEY
-# CF_ACCESS_TEAM_DOMAIN
-# CF_ACCESS_AUD
+# STRIPE_SECRET_KEY

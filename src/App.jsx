@@ -492,8 +492,37 @@ const DimensionCard = ({ dim, isPaid, onUnlock, priceLabel }) => {
 const PaymentModal = ({ onClose, url, localPrice }) => {
   const [email, setEmail] = useState("");
   const [step, setStep] = useState("details");
+  const [processing, setProcessing] = useState(false);
+  const [paymentError, setPaymentError] = useState(null);
   const priceLabel = localPrice ? formatPrice(localPrice) : "CHF 49.99";
   const isLocalised = localPrice && localPrice.currency !== "CHF";
+
+  const handlePay = async () => {
+    if (!email) return setPaymentError('Please enter an email');
+    setPaymentError(null);
+    setProcessing(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/checkout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, url }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Checkout creation failed');
+      if (data.checkoutUrl) {
+        // redirect to Stripe Checkout
+        window.location.href = data.checkoutUrl;
+        return;
+      }
+      // fallback: show confirmation
+      setStep('confirm');
+    } catch (e) {
+      console.error('Checkout error', e);
+      setPaymentError(e.message || 'Checkout failed');
+    } finally {
+      setProcessing(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -526,10 +555,12 @@ const PaymentModal = ({ onClose, url, localPrice }) => {
                 className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-cyan-500"
                 placeholder="you@example.com" />
             </div>
-            <button onClick={() => email && setStep("confirm")}
-              className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white py-3 rounded-lg font-semibold hover:from-cyan-400 hover:to-blue-500 transition-all flex items-center justify-center gap-2">
-              <CreditCard size={18} /> Pay {priceLabel}
+            <button onClick={handlePay}
+              disabled={processing}
+              className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white py-3 rounded-lg font-semibold hover:from-cyan-400 hover:to-blue-500 transition-all flex items-center justify-center gap-2 disabled:opacity-60">
+              <CreditCard size={18} /> {processing ? 'Processing…' : `Pay ${priceLabel}`}
             </button>
+            {paymentError && <p className="text-red-400 text-xs mt-2">{paymentError}</p>}
             <p className="text-slate-500 text-xs text-center mt-3">
               Secure payment via Stripe. You will not be charged until you confirm.
             </p>

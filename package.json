@@ -7,7 +7,17 @@
     "dev": "vite",
     "build": "vite build && cp dist/index.html dist/404.html",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy:audit-api": "cd workers/audit-api && wrangler publish && cd ../..",
+    "deploy:checkout": "cd workers/checkout && wrangler publish && cd ../..",
+    "deploy:webhook": "cd workers/stripe-webhook && wrangler publish && cd ../..",
+    "deploy:oauth": "cd workers/oauth-proxy && wrangler publish && cd ../..",
+    "deploy:workers": "npm run deploy:audit-api && npm run deploy:checkout && npm run deploy:webhook && npm run deploy:oauth",
+    "deploy:frontend": "npm run build && npx wrangler pages publish dist --project-name citesite",
+    "db:init": "npx wrangler d1 execute citesite-db --file workers/db/orders.sql",
+    "db:verify": "npx wrangler d1 execute citesite-db --command \"SELECT name FROM sqlite_master WHERE type='table';\"",
+    "secrets:list": "npx wrangler secret list",
+    "setup": "bash scripts/deploy.sh"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.5.1",
