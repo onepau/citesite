@@ -255,7 +255,7 @@ const BLOG_POSTS = [
    Admin audits on localhost use admin key from localStorage.
    Set key once in browser console: localStorage.setItem("adminKey", "your-key")
    ═══════════════════════════════════════════════════════════════════ */
-const API_BASE = "https://citesite-api.onepau.workers.dev";
+const API_BASE = "https://api.citesite.net";
 const IS_LOCAL = typeof window !== "undefined" && window.location.hostname === "localhost";
 
 const getAccessJWT = () => {
@@ -517,8 +517,7 @@ const PaymentModal = ({ onClose, url, localPrice }) => {
         window.location.href = data.checkoutUrl;
         return;
       }
-      // fallback: show confirmation
-      setStep('confirm');
+      throw new Error('No checkout URL received');
     } catch (e) {
       console.error('Checkout error', e);
       setPaymentError(e.message || 'Checkout failed');
