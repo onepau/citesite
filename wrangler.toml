@@ -1,29 +1,12 @@
-# CiteSite Root Workspace Configuration
-# This file manages the deployment of all workers and shared resources
-
-[env.production]
-name = "citesite-prod"
+# CiteSite Frontend - Cloudflare Worker Configuration
+name = "citesite"
+main = "index.js"
+compatibility_date = "2026-04-24"
 routes = [
-  { pattern = "api.citesite.net/api/audit", zone_name = "citesite.net" },
-  { pattern = "api.citesite.net/api/checkout", zone_name = "citesite.net" },
-  { pattern = "webhook.citesite.net/*", zone_name = "citesite.net" }
+  { pattern = "citesite.net/*", zone_name = "citesite.net" },
+  { pattern = "www.citesite.net/*", zone_name = "citesite.net" }
 ]
 
-[env.staging]
-name = "citesite-staging"
-
-# Shared D1 Database Configuration
-[[d1_databases]]
-binding = "DB"
-database_name = "citesite-db"
-database_id = "c3773f9a-5b71-4095-9b48-2131eea61eaf"
-
-# Shared KV for caching (optional, for future use)
-# [[kv_namespaces]]
-# binding = "CACHE"
-# id = "your_kv_namespace_id"
-# preview_id = "your_preview_kv_namespace_id"
-
-# Analytics Engine (optional, for event logging)
-# [analytics_engine_datasets]
-# enabled = true
+[assets]
+directory = "dist"
+binding = "ASSETS"

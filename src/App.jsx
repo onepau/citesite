@@ -492,27 +492,31 @@ const DimensionCard = ({ dim, isPaid, onUnlock, priceLabel }) => {
 
 const PaymentModal = ({ onClose, url, localPrice }) => {
   const [email, setEmail] = useState("");
+  const [editableUrl, setEditableUrl] = useState(url || "");
   const [step, setStep] = useState("details");
   const [processing, setProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState(null);
+  const isUrlPrefilled = !!url;
   const priceLabel = localPrice ? formatPrice(localPrice) : "CHF 49.99";
   const isLocalised = localPrice && localPrice.currency !== "CHF";
 
   const handlePay = async () => {
     if (!email) return setPaymentError('Please enter an email');
+    if (!editableUrl.trim()) return setPaymentError('Please enter a URL');
     setPaymentError(null);
     setProcessing(true);
     try {
       const res = await fetch(`${API_BASE}/api/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, url }),
+        body: JSON.stringify({ email, url: editableUrl.trim() }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Checkout creation failed');
       if (data.checkoutUrl && data.orderId) {
-        // Store orderId so we can load full audit after payment
+        // Store orderId and URL so we can load full audit after payment
         sessionStorage.setItem('pendingOrderId', data.orderId);
+        sessionStorage.setItem('pendingAuditUrl', editableUrl.trim());
         // redirect to Stripe Checkout
         window.location.href = data.checkoutUrl;
         return;
@@ -550,7 +554,13 @@ const PaymentModal = ({ onClose, url, localPrice }) => {
               <div className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-400" /> Delivered as a 16-page PDF within 48 hours</div>
             </div>
             <div className="text-sm text-slate-400 mb-2">URL to audit</div>
-            <div className="bg-slate-900 rounded-lg p-3 text-cyan-400 text-sm mb-4 font-mono truncate">{url}</div>
+            {isUrlPrefilled ? (
+              <div className="bg-slate-900 rounded-lg p-3 text-cyan-400 text-sm mb-4 font-mono truncate">{editableUrl}</div>
+            ) : (
+              <input type="url" value={editableUrl} onChange={(e) => setEditableUrl(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-cyan-500 mb-4"
+                placeholder="https://example.com" />
+            )}
             <div className="mb-4">
               <label className="text-sm text-slate-400 block mb-1">Email for report delivery</label>
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
@@ -705,16 +715,22 @@ export default function App() {
       const params = new URLSearchParams(window.location.search);
       const checkoutSuccess = params.get('checkout') === 'success';
       const storedOrderId = sessionStorage.getItem('pendingOrderId');
+      const storedAuditUrl = sessionStorage.getItem('pendingAuditUrl');
 
       if (checkoutSuccess && storedOrderId) {
         setPaymentSuccess(true);
         setOrderId(storedOrderId);
+        // If URL was entered directly in payment modal (direct paid audit), set it here
+        if (storedAuditUrl && !auditUrl) {
+          setAuditUrl(storedAuditUrl);
+        }
         sessionStorage.removeItem('pendingOrderId');
+        sessionStorage.removeItem('pendingAuditUrl');
         // Clear URL params for cleaner history
         window.history.replaceState({}, document.title, window.location.pathname);
       }
     }
-  }, []);
+  }, [auditUrl]);
 
   // Auto-load full audit when payment succeeds
   useEffect(() => {
