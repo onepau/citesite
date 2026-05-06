@@ -1358,7 +1358,7 @@ export default function App() {
         </div>
       </footer>
 
-      {showPayment && <PaymentModal onClose={() => setShowPayment(false)} url={auditUrl || url || "https://example.com"} localPrice={localPrice} />}
+      {showPayment && <PaymentModal onClose={() => setShowPayment(false)} url={auditUrl || url} localPrice={localPrice} />}
 
       {/* ── DEV ADMIN PANEL — localhost only ── */}
       {IS_LOCAL && <DevAdminPanel />}
