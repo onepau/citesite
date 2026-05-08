@@ -48,6 +48,7 @@
   font-size: 0.875em;
 }
 .blog-content pre {
+  @apply font-mono text-sm leading-6;
   background: #0f172a;
   border: 1px solid #334155;
   border-radius: 0.5rem;
