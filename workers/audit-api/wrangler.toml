@@ -1,6 +1,9 @@
 name = "citesite-api"
 main = "index.js"
 compatibility_date = "2026-04-24"
+routes = [
+  { pattern = "api.citesite.net/api/audit*", zone_name = "citesite.net" }
+]
 
 [vars]
 ANTHROPIC_MODEL = "claude-sonnet-4-20250514"

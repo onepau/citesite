@@ -13,7 +13,7 @@
     "deploy:webhook": "cd workers/stripe-webhook && wrangler deploy && cd ../..",
     "deploy:oauth": "cd workers/oauth-proxy && wrangler deploy && cd ../..",
     "deploy:workers": "npm run deploy:audit-api && npm run deploy:checkout && npm run deploy:webhook && npm run deploy:oauth",
-    "deploy:frontend": "npm run build && npx wrangler pages deploy dist --project-name citesite",
+    "deploy:frontend": "npm run build && npx wrangler deploy",
     "db:init": "npx wrangler d1 execute citesite-db --file workers/db/orders.sql",
     "db:verify": "npx wrangler d1 execute citesite-db --command \"SELECT name FROM sqlite_master WHERE type='table';\"",
     "secrets:list": "npx wrangler secret list",
@@ -41,9 +41,5 @@
     "globals": "^17.5.0",
     "tailwindcss": "^4.2.4",
     "vite": "^8.0.10"
-  },
-  "optionalDependencies": {
-    "@emnapi/core": "1.10.0",
-    "@emnapi/runtime": "1.10.0"
   }
 }

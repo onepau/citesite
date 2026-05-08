@@ -5,3 +5,7 @@ dist
 *.local
 .wrangler
 .DS_Store
+
+# Jupyter notebook artefacts (committed by accident in early dev)
+*.ipynb
+.ipynb_checkpoints/

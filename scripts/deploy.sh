@@ -94,22 +94,22 @@ case $choice in
         echo ""
 
         echo -e "${BLUE}→ Deploying audit-api...${NC}"
-        cd workers/audit-api && wrangler publish && cd - > /dev/null
+        cd workers/audit-api && wrangler deploy && cd - > /dev/null
         echo -e "${GREEN}✓ citesite-api deployed${NC}"
 
         echo ""
         echo -e "${BLUE}→ Deploying checkout...${NC}"
-        cd workers/checkout && wrangler publish && cd - > /dev/null
+        cd workers/checkout && wrangler deploy && cd - > /dev/null
         echo -e "${GREEN}✓ citesite-checkout deployed${NC}"
 
         echo ""
         echo -e "${BLUE}→ Deploying stripe-webhook...${NC}"
-        cd workers/stripe-webhook && wrangler publish && cd - > /dev/null
+        cd workers/stripe-webhook && wrangler deploy && cd - > /dev/null
         echo -e "${GREEN}✓ citesite-webhook deployed${NC}"
 
         echo ""
         echo -e "${BLUE}→ Deploying oauth-proxy...${NC}"
-        cd workers/oauth-proxy && wrangler publish && cd - > /dev/null
+        cd workers/oauth-proxy && wrangler deploy && cd - > /dev/null
         echo -e "${GREEN}✓ citesite-oauth deployed${NC}"
 
         echo ""
@@ -173,16 +173,16 @@ case $choice in
 
         # Deploy workers
         echo -e "${BLUE}Step 3: Deploying workers${NC}"
-        cd workers/audit-api && wrangler publish && cd - > /dev/null
+        cd workers/audit-api && wrangler deploy && cd - > /dev/null
         echo -e "${GREEN}✓ citesite-api deployed${NC}"
 
-        cd workers/checkout && wrangler publish && cd - > /dev/null
+        cd workers/checkout && wrangler deploy && cd - > /dev/null
         echo -e "${GREEN}✓ citesite-checkout deployed${NC}"
 
-        cd workers/stripe-webhook && wrangler publish && cd - > /dev/null
+        cd workers/stripe-webhook && wrangler deploy && cd - > /dev/null
         echo -e "${GREEN}✓ citesite-webhook deployed${NC}"
 
-        cd workers/oauth-proxy && wrangler publish && cd - > /dev/null
+        cd workers/oauth-proxy && wrangler deploy && cd - > /dev/null
         echo -e "${GREEN}✓ citesite-oauth deployed${NC}"
 
         echo ""

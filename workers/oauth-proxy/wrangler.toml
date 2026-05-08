@@ -1,3 +1,19 @@
 name = "citesite-oauth"
 main = "index.js"
 compatibility_date = "2026-04-24"
+
+# NOTE: Confirm the auth.citesite.net subdomain exists in your Cloudflare DNS
+# (CNAME or A record routed to Workers) before deploying. Without an explicit
+# route the worker is only reachable at *.workers.dev, which means /callback
+# won't be hit by GitHub's redirect to your custom domain.
+routes = [
+  { pattern = "auth.citesite.net/*", zone_name = "citesite.net" }
+]
+
+# Secrets (set with: npx wrangler secret put SECRET_NAME --name citesite-oauth)
+# GITHUB_CLIENT_ID
+# GITHUB_CLIENT_SECRET
+
+# Optional vars (set with [vars] block):
+# OAUTH_OPENER_ORIGIN — origin allowed to receive postMessage from /callback
+#                       (defaults to https://citesite.net)
