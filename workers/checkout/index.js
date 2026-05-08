@@ -1,6 +1,27 @@
+const DEFAULT_ALLOWED_ORIGINS = [
+  "https://citesite.net",
+  "https://www.citesite.net",
+  "http://localhost:5174",
+  "http://localhost:5173",
+];
+
+function corsHeaders(request, env) {
+  const allowed = new Set(
+    (env.ALLOWED_ORIGINS ? env.ALLOWED_ORIGINS.split(",").map(s => s.trim()) : DEFAULT_ALLOWED_ORIGINS)
+  );
+  const origin = request.headers.get("Origin");
+  const headers = {
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Vary": "Origin",
+  };
+  if (origin && allowed.has(origin)) headers["Access-Control-Allow-Origin"] = origin;
+  return headers;
+}
+
 export default {
   async fetch(request, env) {
-    const CORS_HEADERS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type" };
+    const CORS_HEADERS = corsHeaders(request, env);
 
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
@@ -13,7 +34,7 @@ export default {
     let body;
     try {
       body = await request.json();
-    } catch (e) {
+    } catch {
       return new Response(JSON.stringify({ error: "Invalid JSON body" }), { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
     }
 

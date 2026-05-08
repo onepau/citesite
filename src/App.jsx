@@ -289,7 +289,7 @@ const callAuditAPI = async (url, isAdmin = false, orderId = null) => {
   });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
+    const err = await res.json().catch(() => ({ error: 'Could not parse server response' }));
     throw new Error(err.error || `API error: ${res.status}`);
   }
 
@@ -502,21 +502,36 @@ const PaymentModal = ({ onClose, url, localPrice }) => {
 
   const handlePay = async () => {
     if (!email) return setPaymentError('Please enter an email');
-    if (!editableUrl.trim()) return setPaymentError('Please enter a URL');
+    const trimmedUrl = editableUrl.trim();
+    if (!trimmedUrl) return setPaymentError('Please enter a URL');
+    let normalisedUrl;
+    try {
+      const candidate = /^https?:\/\//i.test(trimmedUrl) ? trimmedUrl : `https://${trimmedUrl}`;
+      const parsed = new URL(candidate);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('protocol');
+      // The URL constructor accepts almost anything as a hostname (it just %-encodes
+      // junk), so require a DNS-style hostname with at least one dot.
+      if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i.test(parsed.hostname)) {
+        throw new Error('hostname');
+      }
+      normalisedUrl = parsed.toString();
+    } catch {
+      return setPaymentError('Please enter a valid URL (e.g. https://example.com)');
+    }
     setPaymentError(null);
     setProcessing(true);
     try {
       const res = await fetch(`${API_BASE}/api/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, url: editableUrl.trim() }),
+        body: JSON.stringify({ email, url: normalisedUrl }),
       });
-      const data = await res.json().catch(() => ({}));
+      const data = await res.json().catch(() => ({ error: 'Could not parse server response' }));
       if (!res.ok) throw new Error(data.error || 'Checkout creation failed');
       if (data.checkoutUrl && data.orderId) {
         // Store orderId and URL so we can load full audit after payment
         sessionStorage.setItem('pendingOrderId', data.orderId);
-        sessionStorage.setItem('pendingAuditUrl', editableUrl.trim());
+        sessionStorage.setItem('pendingAuditUrl', normalisedUrl);
         // redirect to Stripe Checkout
         window.location.href = data.checkoutUrl;
         return;
@@ -679,10 +694,19 @@ const DevAdminPanel = () => {
 /* ═══════════════════════════════════════════════════════════════════
    MAIN APP
    ═══════════════════════════════════════════════════════════════════ */
+const PAGES = {
+  HOME: "home",
+  ADMIN_AUDIT: "admin-audit",
+  RESULTS: "results",
+  POST: "post",
+  BLOG: "blog",
+  PRICING: "pricing",
+};
+
 export default function App() {
   const [page, setPage] = useState(() => {
-    if (typeof window !== "undefined" && window.location.pathname === "/admin-audit") return "admin-audit";
-    return "home";
+    if (typeof window !== "undefined" && window.location.pathname === "/admin-audit") return PAGES.ADMIN_AUDIT;
+    return PAGES.HOME;
   });
   const isAdmin = typeof window !== "undefined" && window.location.pathname === "/admin-audit";
   const [url, setUrl] = useState("");
@@ -741,7 +765,7 @@ export default function App() {
         try {
           const data = await callAuditAPI(auditUrl, false, orderId);
           setResults(data);
-          setPage("results");
+          setPage(PAGES.RESULTS);
           setShowPayment(false);
         } catch (err) {
           setAuditError(err.message);
@@ -759,7 +783,7 @@ export default function App() {
   const loadPost = async (post) => {
     setSelectedPost(post);
     setPostContent('');
-    setPage("post");
+    setPage(PAGES.POST);
     const loader = mdFiles[`../content/blog/${post.slug}.md`];
     if (loader) {
       const raw = await loader();
@@ -779,14 +803,15 @@ export default function App() {
       const downloadUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = downloadUrl;
-      link.download = `citesite-audit-${new URL(auditUrl).hostname}.pdf`;
+      let host = 'site';
+      try { host = new URL(auditUrl).hostname; } catch { /* fall back to default */ }
+      link.download = `citesite-audit-${host}.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(downloadUrl);
       setShowPDFModal(false);
-    } catch (e) {
-      console.error(e);
+    } catch {
       alert("PDF generation failed. Please try again.");
     } finally {
       setPdfGenerating(false);
@@ -801,7 +826,7 @@ export default function App() {
     try {
       const data = await callAuditAPI(url.trim(), isAdmin);
       setResults(data);
-      setPage("results");
+      setPage(PAGES.RESULTS);
     } catch (err) {
       setAuditError(err.message);
       setPage(isAdmin ? "admin-audit" : "home");
@@ -833,9 +858,9 @@ export default function App() {
             <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">CiteSite</span>
           </button>
           <div className="hidden md:flex items-center gap-6 text-sm">
-            <button onClick={() => setPage("home")} className="text-slate-400 hover:text-white transition-colors">Audit</button>
-            <button onClick={() => setPage("blog")} className="text-slate-400 hover:text-white transition-colors">Blog</button>
-            <button onClick={() => setPage("pricing")} className="text-slate-400 hover:text-white transition-colors">Pricing</button>
+            <button onClick={() => setPage(PAGES.HOME)} className="text-slate-400 hover:text-white transition-colors">Audit</button>
+            <button onClick={() => setPage(PAGES.BLOG)} className="text-slate-400 hover:text-white transition-colors">Blog</button>
+            <button onClick={() => setPage(PAGES.PRICING)} className="text-slate-400 hover:text-white transition-colors">Pricing</button>
             <button onClick={() => setShowPayment(true)}
               className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:from-cyan-400 hover:to-blue-500">
               Get Full Report — {priceLabel}
@@ -845,15 +870,15 @@ export default function App() {
         </div>
         {menuOpen && (
           <div className="md:hidden border-t border-slate-800 px-4 py-3 space-y-2 bg-slate-950">
-            <button onClick={() => { setPage("home"); setMenuOpen(false); }} className="block w-full text-left text-slate-300 py-2">Audit</button>
-            <button onClick={() => { setPage("blog"); setMenuOpen(false); }} className="block w-full text-left text-slate-300 py-2">Blog</button>
-            <button onClick={() => { setPage("pricing"); setMenuOpen(false); }} className="block w-full text-left text-slate-300 py-2">Pricing</button>
+            <button onClick={() => { setPage(PAGES.HOME); setMenuOpen(false); }} className="block w-full text-left text-slate-300 py-2">Audit</button>
+            <button onClick={() => { setPage(PAGES.BLOG); setMenuOpen(false); }} className="block w-full text-left text-slate-300 py-2">Blog</button>
+            <button onClick={() => { setPage(PAGES.PRICING); setMenuOpen(false); }} className="block w-full text-left text-slate-300 py-2">Pricing</button>
           </div>
         )}
       </nav>
 
       {/* HOME */}
-      {page === "home" && !loading && !auditError && (
+      {page === PAGES.HOME && !loading && !auditError && (
         <div>
           <section className="max-w-4xl mx-auto px-4 pt-20 pb-16 text-center">
             <div className="inline-block px-3 py-1 rounded-full bg-cyan-500/10 text-cyan-400 text-xs font-medium mb-6 border border-cyan-500/20">
@@ -946,7 +971,7 @@ export default function App() {
       )}
 
       {/* ERROR */}
-      {auditError && !loading && (page === "home" || page === "admin-audit") && (
+      {auditError && !loading && (page === PAGES.HOME || page === PAGES.ADMIN_AUDIT) && (
         <div className="max-w-md mx-auto px-4 pt-16 text-center">
           <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-6">
             <XCircle size={32} className="text-red-400 mx-auto mb-3" />
@@ -959,7 +984,7 @@ export default function App() {
       )}
 
       {/* ADMIN AUDIT */}
-      {page === "admin-audit" && !loading && !auditError && (
+      {page === PAGES.ADMIN_AUDIT && !loading && !auditError && (
         <div>
           <section className="max-w-4xl mx-auto px-4 pt-20 pb-16 text-center">
             <div className="inline-block px-3 py-1 rounded-full bg-amber-500/10 text-amber-400 text-xs font-medium mb-6 border border-amber-500/20">
@@ -986,7 +1011,7 @@ export default function App() {
       )}
 
       {/* RESULTS */}
-      {page === "results" && results && !loading && (
+      {page === PAGES.RESULTS && results && !loading && (
         <div className="max-w-6xl mx-auto px-4 py-8">
           <div className="mb-6">
             <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -1242,7 +1267,7 @@ export default function App() {
       )}
 
       {/* BLOG */}
-      {page === "blog" && (
+      {page === PAGES.BLOG && (
         <div className="max-w-4xl mx-auto px-4 py-12">
           <h1 className="text-3xl font-bold text-white mb-2">Blog</h1>
           <p className="text-slate-400 mb-8">Guides, case studies, and updates on SEO, GEO, and AI-optimised content.</p>
@@ -1266,9 +1291,9 @@ export default function App() {
       )}
 
       {/* BLOG POST */}
-      {page === "post" && selectedPost && (
+      {page === PAGES.POST && selectedPost && (
         <div className="max-w-2xl mx-auto px-4 py-12">
-          <button onClick={() => setPage("blog")} className="text-slate-400 text-sm mb-8 hover:text-white flex items-center gap-1">
+          <button onClick={() => setPage(PAGES.BLOG)} className="text-slate-400 text-sm mb-8 hover:text-white flex items-center gap-1">
             <ChevronRight size={14} className="rotate-180" /> Back to Blog
           </button>
           <div className="flex items-center gap-2 mb-4">
@@ -1288,7 +1313,7 @@ export default function App() {
       )}
 
       {/* PRICING */}
-      {page === "pricing" && (
+      {page === PAGES.PRICING && (
         <div className="max-w-4xl mx-auto px-4 py-12">
           <h1 className="text-3xl font-bold text-white text-center mb-2">Pricing</h1>
           <p className="text-slate-400 text-center mb-10">One clear price. No subscriptions.</p>
@@ -1308,7 +1333,7 @@ export default function App() {
                 <li className="flex items-center gap-2"><XCircle size={14} className="text-slate-600" /> Code snippets & implementation guides</li>
                 <li className="flex items-center gap-2"><XCircle size={14} className="text-slate-600" /> 16-page PDF report</li>
               </ul>
-              <button onClick={() => setPage("home")}
+              <button onClick={() => setPage(PAGES.HOME)}
                 className="w-full border border-slate-600 text-white py-2.5 rounded-lg font-medium hover:bg-slate-700 transition-colors">Run Free Audit</button>
             </div>
             <div className="bg-gradient-to-br from-slate-800 to-slate-800/80 rounded-xl border border-cyan-500/30 p-6 relative">
@@ -1351,9 +1376,9 @@ export default function App() {
             <span>CiteSite</span> · <span>© {new Date().getFullYear()}</span>
           </div>
           <div className="flex gap-6 text-sm text-slate-500">
-            <button onClick={() => setPage("home")} className="hover:text-white transition-colors">Audit</button>
-            <button onClick={() => setPage("blog")} className="hover:text-white transition-colors">Blog</button>
-            <button onClick={() => setPage("pricing")} className="hover:text-white transition-colors">Pricing</button>
+            <button onClick={() => setPage(PAGES.HOME)} className="hover:text-white transition-colors">Audit</button>
+            <button onClick={() => setPage(PAGES.BLOG)} className="hover:text-white transition-colors">Blog</button>
+            <button onClick={() => setPage(PAGES.PRICING)} className="hover:text-white transition-colors">Pricing</button>
           </div>
         </div>
       </footer>
