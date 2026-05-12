@@ -1,6 +1,6 @@
 ---
 title: The importance of having an llms.txt file
-date: 2026-05-12T14:19:00.000+02:00
+date: 2026-05-11T14:19:00.000+02:00
 category: GEO Fundamentals
 excerpt: Why you need an llms.txt file if you're serious about GEO discoverability.
 readTime: 5 min
