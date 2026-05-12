@@ -15,7 +15,7 @@ import {
   PolarRadiusAxis, ResponsiveContainer,
 } from "recharts";
 
-const mdFiles = import.meta.glob('../content/blog/*.md', { query: '?raw', import: 'default' });
+const mdFiles = import.meta.glob('../content/blog/*.md', { query: '?raw', import: 'default', eager: true });
 
 /* ═══════════════════════════════════════════════════════════════════
    AUDIT ENGINE CONFIGURATION
@@ -202,51 +202,46 @@ const AUDIT_DIMENSIONS = [
   },
 ];
 
-/* ═══════════════════════════════════════════════════════════════════
-   BLOG POSTS — Replace with Decap CMS in production
-   ═══════════════════════════════════════════════════════════════════ */
-const BLOG_POSTS = [
-  {
-    id: 1,
-    slug: "what-is-geo",
-    title: "What Is Generative Engine Optimisation (GEO)?",
-    excerpt: "GEO is the practice of optimising your content to be cited by AI-powered search engines and large language models. Here's what you need to know.",
-    category: "GEO Fundamentals",
-    date: "2026-04-20",
-    readTime: "8 min",
-    featured: true,
-  },
-  {
-    id: 2,
-    slug: "llms-txt-guide",
-    title: "The Complete Guide to llms.txt",
-    excerpt: "How to create and maintain an llms.txt file that helps AI systems understand and correctly cite your website content.",
-    category: "Technical Guide",
-    date: "2026-04-15",
-    readTime: "6 min",
-    featured: false,
-  },
-  {
-    id: 3,
-    slug: "json-ld-eeat",
-    title: "JSON-LD Structured Data for E-E-A-T Signals",
-    excerpt: "A practical walkthrough of building a comprehensive JSON-LD @graph that communicates expertise, authority, and trust to AI systems.",
-    category: "Structured Data",
-    date: "2026-04-10",
-    readTime: "10 min",
-    featured: true,
-  },
-  {
-    id: 4,
-    slug: "seo-vs-geo",
-    title: "SEO vs GEO: What's Changed and What Hasn't",
-    excerpt: "Traditional SEO isn't dead — but the rules are evolving. Understanding where SEO ends and GEO begins is crucial for modern visibility.",
-    category: "Strategy",
-    date: "2026-04-05",
-    readTime: "7 min",
-    featured: false,
-  },
-];
+function parseFrontmatter(raw) {
+  const match = raw.match(/^---\n([\s\S]*?)\n---/);
+  if (!match) return {};
+  const lines = match[1].split('\n');
+  const result = {};
+  let currentKey = null;
+  let currentVal = '';
+  for (const line of lines) {
+    if (/^\s/.test(line) && currentKey) {
+      currentVal += ' ' + line.trim();
+      result[currentKey] = currentVal;
+    } else {
+      const colon = line.indexOf(':');
+      if (colon === -1) continue;
+      currentKey = line.slice(0, colon).trim();
+      currentVal = line.slice(colon + 1).trim();
+      result[currentKey] = currentVal;
+    }
+  }
+  if (result.featured === 'true') result.featured = true;
+  if (result.featured === 'false') result.featured = false;
+  return result;
+}
+
+const BLOG_POSTS = Object.entries(mdFiles)
+  .map(([path, raw], idx) => {
+    const slug = path.replace('../content/blog/', '').replace('.md', '');
+    const fm = parseFrontmatter(raw);
+    return {
+      id: idx + 1,
+      slug,
+      title: fm.title || slug,
+      excerpt: fm.excerpt || '',
+      category: fm.category || '',
+      date: (fm.date || '').slice(0, 10),
+      readTime: fm.readTime || '',
+      featured: fm.featured === true,
+    };
+  })
+  .sort((a, b) => b.date.localeCompare(a.date));
 
 /* ═══════════════════════════════════════════════════════════════════
    API CONFIGURATION
@@ -780,13 +775,11 @@ export default function App() {
   const priceLabel = localPrice ? formatPrice(localPrice) : "CHF 49.99";
   const isLocalisedPrice = localPrice && localPrice.currency !== "CHF";
 
-  const loadPost = async (post) => {
+  const loadPost = (post) => {
     setSelectedPost(post);
-    setPostContent('');
     setPage(PAGES.POST);
-    const loader = mdFiles[`../content/blog/${post.slug}.md`];
-    if (loader) {
-      const raw = await loader();
+    const raw = mdFiles[`../content/blog/${post.slug}.md`];
+    if (raw) {
       const body = raw.replace(/^---[\s\S]*?---\n/, '');
       setPostContent(marked.parse(body));
     } else {
