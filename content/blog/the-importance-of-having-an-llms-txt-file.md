@@ -6,6 +6,8 @@ excerpt: Why you need an llms.txt file if you're serious about GEO discoverabili
 readTime: 5 min
 featured: false
 ---
+![A graphic illustrating where an llms.txt file fits in to the GEO discovery pipeline](/images/blog/citesite_importance_of_llms_txt.png "An llms.txt file is a crucial element in helping AI crawlers understand your website")
+
 An llms.txt file might sound niche today, but it’s quickly becoming a critical part of modern SEO and GEO strategy. As AI-driven search tools like OpenAI ChatGPT, Google Gemini, and other large language models increasingly shape how users discover information, websites need clearer ways to communicate with these systems.
 
 Think of llms.txt as a guidebook for AI. It helps language models understand which parts of your site matter most, which content is authoritative, and how your information should be interpreted. While traditional SEO focused on search engine crawlers, GEO (Generative Engine Optimization) is about influencing how AI systems summarize, cite, and recommend your brand.
