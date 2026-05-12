@@ -4,7 +4,7 @@ date: 2026-05-12T14:19:00.000+02:00
 category: GEO Fundamentals
 excerpt: Why you need an llms.txt file if you're serious about GEO discoverability.
 readTime: 5 min
-featured: false
+featured: true
 ---
 ![A graphic illustrating where an llms.txt file fits in to the GEO discovery pipeline](/images/blog/citesite_importance_of_llms_txt.png "An llms.txt file is a crucial element in helping AI crawlers understand your website")
 
