@@ -428,7 +428,7 @@ function filterFreeTier(results) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const CORS_HEADERS = corsHeaders(request, env);
 
     if (request.method === "OPTIONS") {
@@ -473,6 +473,7 @@ export default {
     }
 
     // Full endpoint requires payment verification OR admin key
+    let order = null;
     if (isFullEndpoint && !isAdminRequest) {
       if (!body.orderId) {
         return new Response(JSON.stringify({ error: "Payment required" }), {
@@ -481,7 +482,7 @@ export default {
         });
       }
       // Verify order exists and is paid
-      const order = await env.DB.prepare(
+      order = await env.DB.prepare(
         "SELECT * FROM orders WHERE id = ? AND status = 'paid'",
       )
         .bind(body.orderId)
@@ -543,25 +544,54 @@ export default {
       console.error("DB insert failed:", e);
     }
 
-    // For paid audits, trigger async detailed generation in background
+    // For paid audits, generate detailed report and email it in the background
     if (isPaidRequest) {
-      env.waitUntil(
+      const emailTo = order?.email || null;
+      const orderId = body.orderId || null;
+      const auditUrl = body.url;
+
+      ctx.waitUntil(
         (async () => {
           try {
-            const detailedResults = await runAudit(body.url, env, true);
+            const detailedResults = await runAudit(auditUrl, env, true);
             if (!detailedResults.error) {
               await env.DB.prepare(
                 "UPDATE audits SET results_json = ? WHERE id = ?",
               )
                 .bind(JSON.stringify(detailedResults), auditId)
                 .run();
-              console.log(`Detailed audit generated for ${auditId}`);
+              console.log(`Detailed audit stored for ${auditId}`);
+            }
+
+            if (emailTo && orderId && env.RESEND_API_KEY) {
+              const reportUrl = `${env.CITESITE_URL || "https://citesite.net"}/?orderId=${orderId}`;
+              const html = `
+<div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#111">
+  <h2 style="margin-bottom:8px">Your Detailed GEO Audit Report is Ready</h2>
+  <p>Your in-depth CiteSite audit for <strong>${auditUrl}</strong> is complete.</p>
+  <p>Click below to view your full report and download the PDF:</p>
+  <p style="text-align:center;margin:24px 0">
+    <a href="${reportUrl}" style="background:#1a1a2e;color:#fff;padding:12px 28px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold">View Report &amp; Download PDF</a>
+  </p>
+  <p style="color:#555;font-size:14px">Your report includes: executive summary, per-dimension analysis with narratives, quick wins, prioritised actions, competitor insights, 30/60/90-day roadmap, and tool recommendations.</p>
+</div>`.trim();
+
+              await fetch("https://api.resend.com/emails", {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${env.RESEND_API_KEY}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  from: "CiteSite <noreply@citesite.net>",
+                  to: emailTo,
+                  subject: "Your CiteSite Detailed Audit Report is Ready",
+                  html,
+                }),
+              });
             }
           } catch (err) {
-            console.error(
-              `Detailed audit generation failed for ${auditId}:`,
-              err,
-            );
+            console.error(`Background audit failed for ${auditId}:`, err);
           }
         })(),
       );
