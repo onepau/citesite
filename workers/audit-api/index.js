@@ -427,6 +427,20 @@ function filterFreeTier(results) {
   };
 }
 
+function extractCoreFromDetailed(results) {
+  if (results.error) return results;
+  return {
+    inspection: results.inspection,
+    dimensions: (results.dimensions || []).map(
+      ({ narrative, quickWins, prioritizedActions, ...core }) => core,
+    ),
+    overallScore: results.overallScore,
+    criticalIssues: results.criticalIssues,
+    improvements: results.improvements,
+    signatureRecommendation: results.signatureRecommendation,
+  };
+}
+
 export default {
   async fetch(request, env, ctx) {
     const CORS_HEADERS = corsHeaders(request, env);
@@ -515,8 +529,9 @@ export default {
     // Determine if this is a paid request
     const isPaidRequest = isFullEndpoint || isAdminRequest;
 
-    // Always generate core audit first (fast, returns immediately)
-    const results = await runAudit(body.url, env, false);
+    // Paid: run detailed audit (one Claude call; background task just emails)
+    // Free: run core audit (filtered before returning)
+    const results = await runAudit(body.url, env, isPaidRequest);
 
     // Return error immediately if audit failed
     if (results.error) {
@@ -526,7 +541,7 @@ export default {
       });
     }
 
-    // Store audit in DB with core results
+    // Store full results in DB (detailed for paid, core for free)
     const auditId = crypto.randomUUID();
     try {
       await env.DB.prepare(
@@ -544,7 +559,7 @@ export default {
       console.error("DB insert failed:", e);
     }
 
-    // For paid audits, generate detailed report and email it in the background
+    // For paid audits, email the report link in the background (no second Claude call)
     if (isPaidRequest) {
       const emailTo = order?.email || null;
       const orderId = body.orderId || null;
@@ -553,16 +568,6 @@ export default {
       ctx.waitUntil(
         (async () => {
           try {
-            const detailedResults = await runAudit(auditUrl, env, true);
-            if (!detailedResults.error) {
-              await env.DB.prepare(
-                "UPDATE audits SET results_json = ? WHERE id = ?",
-              )
-                .bind(JSON.stringify(detailedResults), auditId)
-                .run();
-              console.log(`Detailed audit stored for ${auditId}`);
-            }
-
             if (emailTo && orderId && env.RESEND_API_KEY) {
               const reportUrl = `${env.CITESITE_URL || "https://citesite.net"}/?orderId=${orderId}`;
               const html = `
@@ -591,7 +596,7 @@ export default {
               });
             }
           } catch (err) {
-            console.error(`Background audit failed for ${auditId}:`, err);
+            console.error(`Background email failed for ${auditId}:`, err);
           }
         })(),
       );
@@ -599,7 +604,7 @@ export default {
 
     // Return results with appropriate tier and filtering
     const output = isPaidRequest
-      ? { ...results, tier: "paid" }
+      ? { ...extractCoreFromDetailed(results), tier: "paid" }
       : filterFreeTier(results);
 
     return new Response(JSON.stringify({ auditId, ...output }), {
