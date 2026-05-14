@@ -9,8 +9,6 @@
    full results without payment.
    ═══════════════════════════════════════════════════════════════════ */
 
-
-
 /* ═══════════════════════════════════════════════════════════════════
    Add this JWT validation block to the TOP of your
    workers/audit-api/index.js file, before the AUDIT_SYSTEM_PROMPT.
@@ -28,7 +26,9 @@ async function validateAccessJWT(token, env) {
 
     const [headerB64, payloadB64, signatureB64] = parts;
 
-    const header = JSON.parse(atob(headerB64.replace(/-/g, "+").replace(/_/g, "/")));
+    const header = JSON.parse(
+      atob(headerB64.replace(/-/g, "+").replace(/_/g, "/")),
+    );
 
     const certsUrl = `https://${env.CF_ACCESS_TEAM_DOMAIN}.cloudflareaccess.com/cdn-cgi/access/certs`;
     const certsRes = await fetch(certsUrl);
@@ -43,18 +43,25 @@ async function validateAccessJWT(token, env) {
       jwk,
       { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
       false,
-      ["verify"]
+      ["verify"],
     );
 
     const data = new TextEncoder().encode(`${headerB64}.${payloadB64}`);
     const sigBuf = Uint8Array.from(
       atob(signatureB64.replace(/-/g, "+").replace(/_/g, "/")),
-      (c) => c.charCodeAt(0)
+      (c) => c.charCodeAt(0),
     );
-    const valid = await crypto.subtle.verify("RSASSA-PKCS1-v1_5", cryptoKey, sigBuf, data);
+    const valid = await crypto.subtle.verify(
+      "RSASSA-PKCS1-v1_5",
+      cryptoKey,
+      sigBuf,
+      data,
+    );
     if (!valid) return null;
 
-    const payload = JSON.parse(atob(payloadB64.replace(/-/g, "+").replace(/_/g, "/")));
+    const payload = JSON.parse(
+      atob(payloadB64.replace(/-/g, "+").replace(/_/g, "/")),
+    );
 
     if (!payload.exp || payload.exp < Date.now() / 1000) return null;
 
@@ -67,7 +74,6 @@ async function validateAccessJWT(token, env) {
     return null;
   }
 }
-
 
 /* ═══════════════════════════════════════════════════════════════════
    Also update the CORS_HEADERS constant to allow the JWT header:
@@ -82,18 +88,21 @@ const DEFAULT_ALLOWED_ORIGINS = [
 
 function corsHeaders(request, env) {
   const allowed = new Set(
-    env.ALLOWED_ORIGINS ? env.ALLOWED_ORIGINS.split(",").map((s) => s.trim()) : DEFAULT_ALLOWED_ORIGINS
+    env.ALLOWED_ORIGINS
+      ? env.ALLOWED_ORIGINS.split(",").map((s) => s.trim())
+      : DEFAULT_ALLOWED_ORIGINS,
   );
   const origin = request.headers.get("Origin");
   const headers = {
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, X-Admin-Key, Cf-Access-Jwt-Assertion",
-    "Vary": "Origin",
+    "Access-Control-Allow-Headers":
+      "Content-Type, X-Admin-Key, Cf-Access-Jwt-Assertion",
+    Vary: "Origin",
   };
-  if (origin && allowed.has(origin)) headers["Access-Control-Allow-Origin"] = origin;
+  if (origin && allowed.has(origin))
+    headers["Access-Control-Allow-Origin"] = origin;
   return headers;
 }
-
 
 /* ═══════════════════════════════════════════════════════════════════
    After deploying, set these environment variables:
@@ -104,8 +113,6 @@ function corsHeaders(request, env) {
    npx wrangler secret put CF_ACCESS_AUD
    # Enter the Application Audience tag from Zero Trust dashboard
    ═══════════════════════════════════════════════════════════════════ */
-
-
 
 const CORE_AUDIT_PROMPT = `You are CiteSite's audit engine. You analyse web pages for SEO and Generative Engine Optimisation (GEO) readiness.
 
@@ -226,8 +233,12 @@ async function fetchLlmsTxt(url) {
   try {
     const origin = new URL(url).origin;
     const [llms, llmsFull] = await Promise.all([
-      fetch(`${origin}/llms.txt`).then(r => r.ok ? r.text() : null).catch(() => null),
-      fetch(`${origin}/llms-full.txt`).then(r => r.ok ? r.text() : null).catch(() => null),
+      fetch(`${origin}/llms.txt`)
+        .then((r) => (r.ok ? r.text() : null))
+        .catch(() => null),
+      fetch(`${origin}/llms-full.txt`)
+        .then((r) => (r.ok ? r.text() : null))
+        .catch(() => null),
     ]);
     return { llmsTxt: llms, llmsFullTxt: llmsFull };
   } catch {
@@ -279,7 +290,13 @@ async function runAudit(url, env, detailed = false) {
     body: JSON.stringify({
       model: env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514",
       max_tokens: maxTokens,
-      system: systemPrompt,
+      system: [
+        {
+          type: "text",
+          text: systemPrompt,
+          cache_control: { type: "ephemeral" },
+        },
+      ],
       messages: [{ role: "user", content: userMessage }],
     }),
   });
@@ -316,10 +333,22 @@ async function runAudit(url, env, detailed = false) {
    ═══════════════════════════════════════════════════════════════════ */
 
 const FREE_CHECK_IDS = new Set([
-  "ssr-csr", "sitemap", "canonical", "https", "mobile",
-  "semantic-html", "heading-hierarchy", "lists-tables",
-  "jsonld-present", "og-tags", "twitter-card",
-  "title-tag", "meta-desc", "h1", "img-alt", "url-structure",
+  "ssr-csr",
+  "sitemap",
+  "canonical",
+  "https",
+  "mobile",
+  "semantic-html",
+  "heading-hierarchy",
+  "lists-tables",
+  "jsonld-present",
+  "og-tags",
+  "twitter-card",
+  "title-tag",
+  "meta-desc",
+  "h1",
+  "img-alt",
+  "url-structure",
 ]);
 
 const LOCKED_TEXT = "Unlock with full report";
@@ -331,14 +360,15 @@ function filterFreeTier(results) {
     ...dim,
     // Score, name, weight, dimension letter, confidence stay visible.
     // Show only the FIRST observation as a taste; rest gated.
-    observations: Array.isArray(dim.observations) && dim.observations.length > 0
-      ? [dim.observations[0]]
-      : [],
+    observations:
+      Array.isArray(dim.observations) && dim.observations.length > 0
+        ? [dim.observations[0]]
+        : [],
     // Free checks keep score+detail; paid checks are nulled.
     checks: (dim.checks || []).map((c) =>
       FREE_CHECK_IDS.has(c.id)
         ? c
-        : { ...c, score: null, detail: LOCKED_TEXT, locked: true }
+        : { ...c, score: null, detail: LOCKED_TEXT, locked: true },
     ),
     // STEP 5 fields stripped entirely for free tier.
     narrative: undefined,
@@ -349,28 +379,32 @@ function filterFreeTier(results) {
   // First critical issue: title + description visible; fix + code locked.
   const firstIssue = results.criticalIssues?.[0];
   const filteredCriticalIssues = firstIssue
-    ? [{
-        title: firstIssue.title,
-        description: firstIssue.description,
-        fix: LOCKED_TEXT,
-        codeSnippet: null,
-        locked: true,
-      }]
+    ? [
+        {
+          title: firstIssue.title,
+          description: firstIssue.description,
+          fix: LOCKED_TEXT,
+          codeSnippet: null,
+          locked: true,
+        },
+      ]
     : [];
 
   // First improvement: title + dimension visible; description/impact/effort locked.
   const firstImprov = results.improvements?.[0];
   const filteredImprovements = firstImprov
-    ? [{
-        rank: firstImprov.rank,
-        dimension: firstImprov.dimension,
-        title: firstImprov.title,
-        description: LOCKED_TEXT,
-        impact: null,
-        effort: null,
-        estimatedTrafficLift: null,
-        locked: true,
-      }]
+    ? [
+        {
+          rank: firstImprov.rank,
+          dimension: firstImprov.dimension,
+          title: firstImprov.title,
+          description: LOCKED_TEXT,
+          impact: null,
+          effort: null,
+          estimatedTrafficLift: null,
+          locked: true,
+        },
+      ]
     : [];
 
   return {
@@ -382,7 +416,8 @@ function filterFreeTier(results) {
     improvements: filteredImprovements,
     signatureRecommendation: {
       title: LOCKED_TEXT,
-      description: "Order your bespoke audit to reveal the signature recommendation.",
+      description:
+        "Order your bespoke audit to reveal the signature recommendation.",
       locked: true,
     },
     competitorInsights: null,
@@ -407,7 +442,6 @@ export default {
       });
     }
 
-
     const url = new URL(request.url);
     const isFullEndpoint = url.pathname === "/api/audit/full";
 
@@ -416,9 +450,10 @@ export default {
     const submittedKey = request.headers.get("X-Admin-Key");
     const adminKeyValid = !!env.ADMIN_KEY && submittedKey === env.ADMIN_KEY;
     const accessJWT = request.headers.get("Cf-Access-Jwt-Assertion");
-    const jwtPayload = accessJWT ? await validateAccessJWT(accessJWT, env) : null;
+    const jwtPayload = accessJWT
+      ? await validateAccessJWT(accessJWT, env)
+      : null;
     const isAdminRequest = adminKeyValid || jwtPayload !== null;
-
 
     let body;
     try {
@@ -447,23 +482,33 @@ export default {
       }
       // Verify order exists and is paid
       const order = await env.DB.prepare(
-        "SELECT * FROM orders WHERE id = ? AND status = 'paid'"
-      ).bind(body.orderId).first();
+        "SELECT * FROM orders WHERE id = ? AND status = 'paid'",
+      )
+        .bind(body.orderId)
+        .first();
 
       if (!order) {
-        return new Response(JSON.stringify({ error: "Invalid or unpaid order" }), {
-          status: 402,
-          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({ error: "Invalid or unpaid order" }),
+          {
+            status: 402,
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          },
+        );
       }
     }
 
     // Validate Anthropic API key is configured
     if (!env.ANTHROPIC_API_KEY) {
-      return new Response(JSON.stringify({ error: "Server not configured: ANTHROPIC_API_KEY missing" }), {
-        status: 500,
-        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          error: "Server not configured: ANTHROPIC_API_KEY missing",
+        }),
+        {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        },
+      );
     }
 
     // Determine if this is a paid request
@@ -484,14 +529,16 @@ export default {
     const auditId = crypto.randomUUID();
     try {
       await env.DB.prepare(
-        "INSERT INTO audits (id, order_id, url, results_json, created_at) VALUES (?, ?, ?, ?, ?)"
-      ).bind(
-        auditId,
-        body.orderId || null,
-        body.url,
-        JSON.stringify(results),
-        new Date().toISOString()
-      ).run();
+        "INSERT INTO audits (id, order_id, url, results_json, created_at) VALUES (?, ?, ?, ?, ?)",
+      )
+        .bind(
+          auditId,
+          body.orderId || null,
+          body.url,
+          JSON.stringify(results),
+          new Date().toISOString(),
+        )
+        .run();
     } catch (e) {
       console.error("DB insert failed:", e);
     }
@@ -504,14 +551,19 @@ export default {
             const detailedResults = await runAudit(body.url, env, true);
             if (!detailedResults.error) {
               await env.DB.prepare(
-                "UPDATE audits SET results_json = ? WHERE id = ?"
-              ).bind(JSON.stringify(detailedResults), auditId).run();
+                "UPDATE audits SET results_json = ? WHERE id = ?",
+              )
+                .bind(JSON.stringify(detailedResults), auditId)
+                .run();
               console.log(`Detailed audit generated for ${auditId}`);
             }
           } catch (err) {
-            console.error(`Detailed audit generation failed for ${auditId}:`, err);
+            console.error(
+              `Detailed audit generation failed for ${auditId}:`,
+              err,
+            );
           }
-        })()
+        })(),
       );
     }
 
