@@ -613,8 +613,11 @@ const callAuditAPI = async (url, isAdmin = false, orderId = null) => {
   }
 
   const isPaid = orderId !== null;
-  const endpoint =
-    isPaid || isAdmin ? `${API_BASE}/api/audit/full` : `${API_BASE}/api/audit`;
+  const endpoint = isAdmin
+    ? `${API_BASE}/api/audit/admin`
+    : isPaid
+      ? `${API_BASE}/api/audit/full`
+      : `${API_BASE}/api/audit`;
 
   const res = await fetch(endpoint, {
     method: "POST",

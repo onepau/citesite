@@ -648,6 +648,48 @@ export default {
       });
     }
 
+    // POST /api/audit/admin — admin-only full audit, ephemeral (no DB write, no email)
+    if (reqUrl.pathname === "/api/audit/admin") {
+      if (!isAdminRequest) {
+        return new Response(JSON.stringify({ error: "Forbidden" }), {
+          status: 403,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+      if (!body.url) {
+        return new Response(JSON.stringify({ error: "Missing url field" }), {
+          status: 400,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+      if (!env.ANTHROPIC_API_KEY) {
+        return new Response(
+          JSON.stringify({
+            error: "Server not configured: ANTHROPIC_API_KEY missing",
+          }),
+          {
+            status: 500,
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          },
+        );
+      }
+      const adminResults = await runAudit(body.url, env, true);
+      if (adminResults.error) {
+        return new Response(JSON.stringify(adminResults), {
+          status: 400,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+      return new Response(
+        JSON.stringify({
+          ...adminResults,
+          tier: "admin",
+          reviewStatus: "approved",
+        }),
+        { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } },
+      );
+    }
+
     // POST /api/audit or /api/audit/full — run or return existing audit
 
     const isFullEndpoint = reqUrl.pathname === "/api/audit/full";
