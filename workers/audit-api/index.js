@@ -288,8 +288,9 @@ async function runAudit(url, env, detailed = false) {
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
-      model: env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514",
+      model: env.ANTHROPIC_MODEL || "claude-opus-4-7",
       max_tokens: maxTokens,
+      stream: true,
       system: [
         {
           type: "text",
@@ -313,9 +314,44 @@ async function runAudit(url, env, detailed = false) {
     return { error: `Anthropic API error: ${response.status} — ${err}` };
   }
 
-  const data = await response.json();
+  // Stream the response — keeps the subrequest alive past Cloudflare's 30s
+  // fetch timeout by receiving tokens continuously as they are generated.
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let sseBuffer = "";
+  let fullText = "";
+  let stopReason = null;
 
-  if (data.stop_reason === "max_tokens") {
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    sseBuffer += decoder.decode(value, { stream: true });
+
+    const lines = sseBuffer.split("\n");
+    sseBuffer = lines.pop(); // hold back any incomplete line
+
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const payload = line.slice(6).trim();
+      if (payload === "[DONE]") continue;
+      try {
+        const evt = JSON.parse(payload);
+        if (
+          evt.type === "content_block_delta" &&
+          evt.delta?.type === "text_delta"
+        ) {
+          fullText += evt.delta.text;
+        }
+        if (evt.type === "message_delta" && evt.delta?.stop_reason) {
+          stopReason = evt.delta.stop_reason;
+        }
+      } catch {
+        // malformed SSE line — skip
+      }
+    }
+  }
+
+  if (stopReason === "max_tokens") {
     return {
       error:
         "The page's content exceeded the AI's output limit and the audit response was cut short. Try auditing a more specific sub-page (e.g. a blog post or product page) rather than the homepage.",
@@ -323,16 +359,11 @@ async function runAudit(url, env, detailed = false) {
     };
   }
 
-  const text = data.content
-    .filter((b) => b.type === "text")
-    .map((b) => b.text)
-    .join("");
-
   try {
-    const clean = text.replace(/```json|```/g, "").trim();
+    const clean = fullText.replace(/```json|```/g, "").trim();
     return JSON.parse(clean);
   } catch {
-    return { error: "Failed to parse audit response", raw: text };
+    return { error: "Failed to parse audit response", raw: fullText };
   }
 }
 
