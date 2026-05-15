@@ -29,6 +29,8 @@ import {
   CalendarRange,
   Wrench,
   ListChecks,
+  Clock,
+  CheckCircle2,
 } from "lucide-react";
 import {
   RadarChart,
@@ -653,6 +655,36 @@ const callAuditAPI = async (url, isAdmin = false, orderId = null) => {
   };
 };
 
+const fetchAuditResults = async (orderId) => {
+  const res = await fetch(
+    `${API_BASE}/api/audit/results?orderId=${encodeURIComponent(orderId)}`,
+  );
+  if (!res.ok) {
+    const err = await res
+      .json()
+      .catch(() => ({ error: "Failed to load results" }));
+    throw new Error(err.error || `API error: ${res.status}`);
+  }
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  if (!data.dimensions) return data; // pending_review — no dimension data yet
+  return {
+    ...data,
+    dimensions: data.dimensions.map((dim) => {
+      const config = AUDIT_DIMENSIONS.find((d) => d.id === dim.id) || {};
+      return {
+        ...config,
+        ...dim,
+        checks: dim.checks.map((c) => {
+          const configCheck =
+            (config.checks || []).find((cc) => cc.id === c.id) || {};
+          return { ...configCheck, ...c };
+        }),
+      };
+    }),
+  };
+};
+
 /* ═══════════════════════════════════════════════════════════════════
    UTILITY FUNCTIONS
    ═══════════════════════════════════════════════════════════════════ */
@@ -1240,6 +1272,13 @@ export default function App() {
   const [localPrice, setLocalPrice] = useState(null);
   const [orderId, setOrderId] = useState(null);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [pendingReviewUrl, setPendingReviewUrl] = useState(null);
+  // Admin approval queue state
+  const [pendingAudits, setPendingAudits] = useState([]);
+  const [loadingPending, setLoadingPending] = useState(false);
+  const [reviewingAudit, setReviewingAudit] = useState(null);
+  const [approving, setApproving] = useState(false);
+  const [approveSuccess, setApproveSuccess] = useState(false);
 
   // Fetch localised price once on mount (cached after first call)
   useEffect(() => {
@@ -1302,6 +1341,95 @@ export default function App() {
     }
   }, [paymentSuccess, orderId, auditUrl]);
 
+  // Load audit for returning user arriving via ?orderId=X link from approval email
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const returnOrderId = params.get("orderId");
+    if (!returnOrderId || paymentSuccess) return;
+    window.history.replaceState({}, document.title, window.location.pathname);
+    const loadByOrderId = async () => {
+      setLoading(true);
+      setAuditError(null);
+      try {
+        const data = await fetchAuditResults(returnOrderId);
+        if (data.reviewStatus === "pending_review") {
+          setPendingReviewUrl(data.url || returnOrderId);
+        } else {
+          setAuditUrl(data.url || "");
+          setResults(data);
+          setPage(PAGES.RESULTS);
+        }
+      } catch (err) {
+        setAuditError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadByOrderId();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch pending audits queue when on admin page
+  const fetchPendingAudits = async () => {
+    setLoadingPending(true);
+    try {
+      const headers = {};
+      if (IS_LOCAL) {
+        const key = localStorage.getItem("adminKey");
+        if (key) headers["X-Admin-Key"] = key;
+      } else {
+        const jwt = getAccessJWT();
+        if (jwt) headers["Cf-Access-Jwt-Assertion"] = jwt;
+      }
+      const res = await fetch(`${API_BASE}/api/audit/pending`, { headers });
+      const data = await res.json();
+      setPendingAudits(data.audits || []);
+    } catch (err) {
+      console.error("Failed to fetch pending audits:", err);
+    } finally {
+      setLoadingPending(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isAdmin) fetchPendingAudits();
+  }, [isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleApprove = async (editedData) => {
+    if (!reviewingAudit) return;
+    setApproving(true);
+    try {
+      const headers = { "Content-Type": "application/json" };
+      if (IS_LOCAL) {
+        const key = localStorage.getItem("adminKey");
+        if (key) headers["X-Admin-Key"] = key;
+      } else {
+        const jwt = getAccessJWT();
+        if (jwt) headers["Cf-Access-Jwt-Assertion"] = jwt;
+      }
+      const res = await fetch(`${API_BASE}/api/audit/approve`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          auditId: reviewingAudit.id,
+          editedResults: editedData,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Approval failed");
+      }
+      setReviewingAudit(null);
+      setApproveSuccess(true);
+      setTimeout(() => setApproveSuccess(false), 4000);
+      await fetchPendingAudits();
+    } catch (err) {
+      alert("Approval failed: " + err.message);
+    } finally {
+      setApproving(false);
+    }
+  };
+
   const priceLabel = localPrice ? formatPrice(localPrice) : "CHF 49.99";
   const isLocalisedPrice = localPrice && localPrice.currency !== "CHF";
 
@@ -1350,6 +1478,7 @@ export default function App() {
     setLoading(true);
     setAuditError(null);
     setAuditErrorCode(null);
+    setPendingReviewUrl(null);
     setAuditUrl(url.trim());
     try {
       const data = await callAuditAPI(url.trim(), isAdmin);
@@ -1682,10 +1811,31 @@ export default function App() {
           </div>
         )}
 
+      {/* PENDING REVIEW — returning user whose report is still awaiting approval */}
+      {pendingReviewUrl && !loading && !results && (
+        <div className="max-w-md mx-auto px-4 pt-20 text-center">
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-8">
+            <Clock size={36} className="text-amber-400 mx-auto mb-4" />
+            <h3 className="text-white font-semibold text-lg mb-2">
+              Your report is under review
+            </h3>
+            <p className="text-slate-400 text-sm mb-2">
+              We&apos;re preparing your detailed audit for:
+            </p>
+            <p className="text-cyan-400 font-mono text-sm break-all mb-4">
+              {pendingReviewUrl}
+            </p>
+            <p className="text-slate-500 text-xs">
+              You&apos;ll receive an email once it&apos;s ready to download.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ADMIN AUDIT */}
       {page === PAGES.ADMIN_AUDIT && !loading && !auditError && (
         <div>
-          <section className="max-w-4xl mx-auto px-4 pt-20 pb-16 text-center">
+          <section className="max-w-4xl mx-auto px-4 pt-16 pb-8 text-center">
             <div className="inline-block px-3 py-1 rounded-full bg-amber-500/10 text-amber-400 text-xs font-medium mb-6 border border-amber-500/20">
               ADMIN — Full Audit Mode
             </div>
@@ -1715,6 +1865,67 @@ export default function App() {
               </button>
             </div>
           </section>
+
+          {/* Pending review queue */}
+          <section className="max-w-4xl mx-auto px-4 pb-16">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-white font-semibold text-lg">
+                Pending Reviews
+                {pendingAudits.length > 0 && (
+                  <span className="ml-2 bg-amber-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                    {pendingAudits.length}
+                  </span>
+                )}
+              </h2>
+              <button
+                onClick={fetchPendingAudits}
+                disabled={loadingPending}
+                className="text-slate-400 hover:text-white text-xs px-3 py-1.5 rounded-lg border border-slate-700 hover:border-slate-500 transition-colors disabled:opacity-50"
+              >
+                {loadingPending ? "Refreshing…" : "Refresh"}
+              </button>
+            </div>
+
+            {approveSuccess && (
+              <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/30 text-green-400 rounded-lg px-4 py-3 mb-4 text-sm">
+                <CheckCircle2 size={16} />
+                Audit approved — customer notification sent.
+              </div>
+            )}
+
+            {loadingPending ? (
+              <p className="text-slate-500 text-sm">Loading…</p>
+            ) : pendingAudits.length === 0 ? (
+              <p className="text-slate-500 text-sm">
+                No audits pending review.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {pendingAudits.map((audit) => (
+                  <div
+                    key={audit.id}
+                    className="bg-slate-800/80 border border-slate-700/50 rounded-xl p-4 flex items-start justify-between gap-4 flex-wrap"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-cyan-400 font-mono text-sm truncate">
+                        {audit.url}
+                      </p>
+                      <p className="text-slate-500 text-xs mt-1">
+                        {audit.email || "no email"} ·{" "}
+                        {new Date(audit.created_at).toLocaleString()}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setReviewingAudit(audit)}
+                      className="bg-amber-500 hover:bg-amber-400 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors shrink-0"
+                    >
+                      Review
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
         </div>
       )}
 
@@ -1734,14 +1945,20 @@ export default function App() {
                   {auditUrl}
                 </p>
               </div>
-              {isAdmin && (
-                <button
-                  onClick={() => setShowPDFModal(true)}
-                  className="flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:from-cyan-400 hover:to-blue-500 transition-all shrink-0"
-                >
-                  <FileText size={16} /> Export 16-Page PDF
-                </button>
-              )}
+              {(isAdmin || results?.tier === "paid") &&
+                (results?.reviewStatus === "pending_review" ? (
+                  <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 text-amber-400 px-4 py-2.5 rounded-lg text-sm shrink-0">
+                    <Clock size={15} />
+                    <span>Report under review — PDF ready soon</span>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowPDFModal(true)}
+                    className="flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:from-cyan-400 hover:to-blue-500 transition-all shrink-0"
+                  >
+                    <FileText size={16} /> Export 16-Page PDF
+                  </button>
+                ))}
             </div>
           </div>
 
@@ -2413,6 +2630,19 @@ export default function App() {
           onClose={() => setShowPDFModal(false)}
           onGenerate={handleGeneratePDF}
           isGenerating={pdfGenerating}
+        />
+      )}
+
+      {/* Admin review modal — opened from the pending queue */}
+      {reviewingAudit && (
+        <PDFEditModal
+          auditData={reviewingAudit.results}
+          url={reviewingAudit.url}
+          onClose={() => setReviewingAudit(null)}
+          onGenerate={handleGeneratePDF}
+          isGenerating={pdfGenerating}
+          onApprove={handleApprove}
+          isApproving={approving}
         />
       )}
     </div>

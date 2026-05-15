@@ -94,7 +94,7 @@ function corsHeaders(request, env) {
   );
   const origin = request.headers.get("Origin");
   const headers = {
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers":
       "Content-Type, X-Admin-Key, Cf-Access-Jwt-Assertion",
     Vary: "Origin",
@@ -465,18 +465,9 @@ export default {
       return new Response(null, { headers: CORS_HEADERS });
     }
 
-    if (request.method !== "POST") {
-      return new Response(JSON.stringify({ error: "POST required" }), {
-        status: 405,
-        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-      });
-    }
+    const reqUrl = new URL(request.url);
 
-    const url = new URL(request.url);
-    const isFullEndpoint = url.pathname === "/api/audit/full";
-
-    // Admin access: either valid admin key OR valid Cloudflare Access JWT.
-    // Empty/unset ADMIN_KEY must NOT match any header value, including missing.
+    // Admin auth — needed for both GET and POST endpoints.
     const submittedKey = request.headers.get("X-Admin-Key");
     const adminKeyValid = !!env.ADMIN_KEY && submittedKey === env.ADMIN_KEY;
     const accessJWT = request.headers.get("Cf-Access-Jwt-Assertion");
@@ -484,6 +475,92 @@ export default {
       ? await validateAccessJWT(accessJWT, env)
       : null;
     const isAdminRequest = adminKeyValid || jwtPayload !== null;
+
+    // ── GET endpoints ──────────────────────────────────────────────
+
+    if (request.method === "GET") {
+      // GET /api/audit/pending — admin only: list audits awaiting review
+      if (reqUrl.pathname === "/api/audit/pending") {
+        if (!isAdminRequest) {
+          return new Response(JSON.stringify({ error: "Forbidden" }), {
+            status: 403,
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          });
+        }
+        const rows = await env.DB.prepare(
+          `SELECT a.id, a.order_id, a.url, a.review_status, a.created_at,
+                  a.results_json, o.email
+           FROM audits a LEFT JOIN orders o ON o.id = a.order_id
+           WHERE a.review_status = 'pending_review'
+           ORDER BY a.created_at DESC`,
+        ).all();
+        const audits = (rows.results || []).map(({ results_json, ...row }) => ({
+          ...row,
+          results: results_json ? JSON.parse(results_json) : null,
+        }));
+        return new Response(JSON.stringify({ audits }), {
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+
+      // GET /api/audit/results?orderId=X — fetch existing audit for returning user
+      if (reqUrl.pathname === "/api/audit/results") {
+        const orderId = reqUrl.searchParams.get("orderId");
+        if (!orderId) {
+          return new Response(JSON.stringify({ error: "Missing orderId" }), {
+            status: 400,
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          });
+        }
+        const audit = await env.DB.prepare(
+          "SELECT * FROM audits WHERE order_id = ? ORDER BY created_at DESC LIMIT 1",
+        )
+          .bind(orderId)
+          .first();
+        if (!audit) {
+          return new Response(JSON.stringify({ error: "Audit not found" }), {
+            status: 404,
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          });
+        }
+        if (audit.review_status !== "approved") {
+          return new Response(
+            JSON.stringify({
+              reviewStatus: "pending_review",
+              url: audit.url,
+              auditId: audit.id,
+            }),
+            {
+              headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+            },
+          );
+        }
+        const results = JSON.parse(audit.results_json);
+        return new Response(
+          JSON.stringify({
+            auditId: audit.id,
+            ...results,
+            reviewStatus: "approved",
+            tier: "paid",
+          }),
+          { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } },
+        );
+      }
+
+      return new Response(JSON.stringify({ error: "Not found" }), {
+        status: 404,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── POST only from here ────────────────────────────────────────
+
+    if (request.method !== "POST") {
+      return new Response(JSON.stringify({ error: "POST required" }), {
+        status: 405,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
 
     let body;
     try {
@@ -495,6 +572,86 @@ export default {
       });
     }
 
+    // POST /api/audit/approve — admin saves edited results and notifies user
+    if (reqUrl.pathname === "/api/audit/approve") {
+      if (!isAdminRequest) {
+        return new Response(JSON.stringify({ error: "Forbidden" }), {
+          status: 403,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+      const { auditId, editedResults } = body || {};
+      if (!auditId || !editedResults) {
+        return new Response(
+          JSON.stringify({ error: "Missing auditId or editedResults" }),
+          {
+            status: 400,
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          },
+        );
+      }
+      const audit = await env.DB.prepare("SELECT * FROM audits WHERE id = ?")
+        .bind(auditId)
+        .first();
+      if (!audit) {
+        return new Response(JSON.stringify({ error: "Audit not found" }), {
+          status: 404,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+      await env.DB.prepare(
+        "UPDATE audits SET results_json = ?, review_status = 'approved' WHERE id = ?",
+      )
+        .bind(JSON.stringify(editedResults), auditId)
+        .run();
+
+      // Email user if the order has an associated email
+      if (audit.order_id && env.RESEND_API_KEY) {
+        const order = await env.DB.prepare(
+          "SELECT email FROM orders WHERE id = ?",
+        )
+          .bind(audit.order_id)
+          .first();
+        if (order?.email) {
+          const reportUrl = `${env.CITESITE_URL || "https://citesite.net"}/?orderId=${audit.order_id}`;
+          const html = `
+<div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#111">
+  <h2 style="margin-bottom:8px">Your Detailed GEO Audit Report is Ready</h2>
+  <p>Your CiteSite audit for <strong>${audit.url}</strong> has been reviewed and is ready to download.</p>
+  <p style="text-align:center;margin:24px 0">
+    <a href="${reportUrl}" style="background:#1a1a2e;color:#fff;padding:12px 28px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold">View Report &amp; Download PDF</a>
+  </p>
+  <p style="color:#555;font-size:14px">Your report includes: executive summary, per-dimension analysis with narratives, quick wins, prioritised actions, competitor insights, 30/60/90-day roadmap, and tool recommendations.</p>
+</div>`.trim();
+          try {
+            await fetch("https://api.resend.com/emails", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${env.RESEND_API_KEY}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                from: "CiteSite <noreply@citesite.net>",
+                to: order.email,
+                subject: "Your CiteSite Detailed Audit Report is Ready",
+                html,
+              }),
+            });
+          } catch (err) {
+            console.error("Approval email failed:", err);
+          }
+        }
+      }
+
+      return new Response(JSON.stringify({ approved: true }), {
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
+    // POST /api/audit or /api/audit/full — run or return existing audit
+
+    const isFullEndpoint = reqUrl.pathname === "/api/audit/full";
+
     if (!body.url) {
       return new Response(JSON.stringify({ error: "Missing url field" }), {
         status: 400,
@@ -502,7 +659,7 @@ export default {
       });
     }
 
-    // Full endpoint requires payment verification OR admin key
+    // Full endpoint requires payment OR admin key
     let order = null;
     if (isFullEndpoint && !isAdminRequest) {
       if (!body.orderId) {
@@ -511,13 +668,11 @@ export default {
           headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
         });
       }
-      // Verify order exists and is paid
       order = await env.DB.prepare(
         "SELECT * FROM orders WHERE id = ? AND status = 'paid'",
       )
         .bind(body.orderId)
         .first();
-
       if (!order) {
         return new Response(
           JSON.stringify({ error: "Invalid or unpaid order" }),
@@ -529,7 +684,6 @@ export default {
       }
     }
 
-    // Validate Anthropic API key is configured
     if (!env.ANTHROPIC_API_KEY) {
       return new Response(
         JSON.stringify({
@@ -542,14 +696,34 @@ export default {
       );
     }
 
-    // Determine if this is a paid request
     const isPaidRequest = isFullEndpoint || isAdminRequest;
 
-    // Paid: run detailed audit (one Claude call; background task just emails)
-    // Free: run core audit (filtered before returning)
+    // For paid orders: return existing audit if one already exists (idempotent)
+    if (isPaidRequest && body.orderId) {
+      const existingAudit = await env.DB.prepare(
+        "SELECT * FROM audits WHERE order_id = ? ORDER BY created_at DESC LIMIT 1",
+      )
+        .bind(body.orderId)
+        .first();
+      if (existingAudit) {
+        const existingResults = JSON.parse(existingAudit.results_json);
+        const isApproved = existingAudit.review_status === "approved";
+        const output = isApproved
+          ? { ...existingResults, tier: "paid", reviewStatus: "approved" }
+          : {
+              ...extractCoreFromDetailed(existingResults),
+              tier: "paid",
+              reviewStatus: "pending_review",
+            };
+        return new Response(
+          JSON.stringify({ auditId: existingAudit.id, ...output }),
+          { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } },
+        );
+      }
+    }
+
     const results = await runAudit(body.url, env, isPaidRequest);
 
-    // Return error immediately if audit failed
     if (results.error) {
       return new Response(JSON.stringify(results), {
         status: 400,
@@ -557,17 +731,20 @@ export default {
       });
     }
 
-    // Store full results in DB (detailed for paid, core for free)
     const auditId = crypto.randomUUID();
+    // Non-admin paid audits require admin review before user can download PDF
+    const reviewStatus =
+      isPaidRequest && !isAdminRequest ? "pending_review" : "approved";
     try {
       await env.DB.prepare(
-        "INSERT INTO audits (id, order_id, url, results_json, created_at) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO audits (id, order_id, url, results_json, review_status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
       )
         .bind(
           auditId,
           body.orderId || null,
           body.url,
           JSON.stringify(results),
+          reviewStatus,
           new Date().toISOString(),
         )
         .run();
@@ -575,28 +752,22 @@ export default {
       console.error("DB insert failed:", e);
     }
 
-    // For paid audits, email the report link in the background (no second Claude call)
-    if (isPaidRequest) {
-      const emailTo = order?.email || null;
-      const orderId = body.orderId || null;
-      const auditUrl = body.url;
-
+    // Notify admin to review — only for paid non-admin audits
+    if (isPaidRequest && !isAdminRequest) {
       ctx.waitUntil(
         (async () => {
           try {
-            if (emailTo && orderId && env.RESEND_API_KEY) {
-              const reportUrl = `${env.CITESITE_URL || "https://citesite.net"}/?orderId=${orderId}`;
+            if (env.ADMIN_EMAIL && env.RESEND_API_KEY) {
+              const reviewUrl = `${env.CITESITE_URL || "https://citesite.net"}/admin-audit`;
               const html = `
 <div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#111">
-  <h2 style="margin-bottom:8px">Your Detailed GEO Audit Report is Ready</h2>
-  <p>Your in-depth CiteSite audit for <strong>${auditUrl}</strong> is complete.</p>
-  <p>Click below to view your full report and download the PDF:</p>
+  <h2>New Audit Pending Review</h2>
+  <p>A paid audit for <strong>${body.url}</strong> is ready for your review.</p>
+  <p style="color:#555">Customer: ${order?.email || "unknown"}</p>
   <p style="text-align:center;margin:24px 0">
-    <a href="${reportUrl}" style="background:#1a1a2e;color:#fff;padding:12px 28px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold">View Report &amp; Download PDF</a>
+    <a href="${reviewUrl}" style="background:#1a1a2e;color:#fff;padding:12px 28px;text-decoration:none;border-radius:6px;display:inline-block;font-weight:bold">Review Audit</a>
   </p>
-  <p style="color:#555;font-size:14px">Your report includes: executive summary, per-dimension analysis with narratives, quick wins, prioritised actions, competitor insights, 30/60/90-day roadmap, and tool recommendations.</p>
 </div>`.trim();
-
               await fetch("https://api.resend.com/emails", {
                 method: "POST",
                 headers: {
@@ -605,22 +776,21 @@ export default {
                 },
                 body: JSON.stringify({
                   from: "CiteSite <noreply@citesite.net>",
-                  to: emailTo,
-                  subject: "Your CiteSite Detailed Audit Report is Ready",
+                  to: env.ADMIN_EMAIL,
+                  subject: `New audit pending review: ${body.url}`,
                   html,
                 }),
               });
             }
           } catch (err) {
-            console.error(`Background email failed for ${auditId}:`, err);
+            console.error(`Admin notification failed for ${auditId}:`, err);
           }
         })(),
       );
     }
 
-    // Return results with appropriate tier and filtering
     const output = isPaidRequest
-      ? { ...extractCoreFromDetailed(results), tier: "paid" }
+      ? { ...extractCoreFromDetailed(results), tier: "paid", reviewStatus }
       : filterFreeTier(results);
 
     return new Response(JSON.stringify({ auditId, ...output }), {
