@@ -193,7 +193,7 @@ RESPONSE FORMAT
 Respond ONLY with valid JSON (no markdown, no preamble):
 {
   "inspection": { ... },
-  "dimensions": [ { "id": "...", "narrative": "...", "quickWins": [...], "prioritizedActions": [...] } ],
+  "dimensions": [ { "id": "crawlability", "dimension": "A", "name": "Crawlability & Retrievability", "weight": 0.20, "score": 72, "confidence": "high", "observations": ["...", "..."], "checks": [{ "id": "ssr-csr", "name": "Server-side rendering", "score": 18, "maxPoints": 20, "detail": "..." }], "narrative": "...", "quickWins": ["..."], "prioritizedActions": [{ "action": "...", "effort": "Low", "impact": "High", "estimatedTrafficLift": "+5-10%" }] } ],
   "overallScore": 65,
   "executiveSummary": "...",
   "criticalIssues": [...],

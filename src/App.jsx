@@ -648,7 +648,7 @@ const callAuditAPI = async (url, isAdmin = false, orderId = null) => {
       return {
         ...config,
         ...dim,
-        checks: dim.checks.map((c) => {
+        checks: (dim.checks || []).map((c) => {
           const configCheck =
             (config.checks || []).find((cc) => cc.id === c.id) || {};
           return { ...configCheck, ...c };
@@ -678,7 +678,7 @@ const fetchAuditResults = async (orderId) => {
       return {
         ...config,
         ...dim,
-        checks: dim.checks.map((c) => {
+        checks: (dim.checks || []).map((c) => {
           const configCheck =
             (config.checks || []).find((cc) => cc.id === c.id) || {};
           return { ...configCheck, ...c };
