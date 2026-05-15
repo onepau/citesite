@@ -6,7 +6,7 @@ routes = [
 ]
 
 [vars]
-ANTHROPIC_MODEL = "claude-sonnet-4-20250514"
+ANTHROPIC_MODEL = "claude-opus-4-7"
 CITESITE_URL = "https://citesite.net"
 
 [[d1_databases]]
