@@ -212,7 +212,7 @@ async function fetchTargetPage(url) {
     });
     const html = await res.text();
     const status = res.status;
-    return { html: html.slice(0, 30000), status, finalUrl: res.url };
+    return { html: html.slice(0, 15000), status, finalUrl: res.url };
   } catch (err) {
     return { html: null, status: 0, finalUrl: url, error: err.message };
   }
@@ -273,7 +273,7 @@ async function runAudit(url, env, detailed = false) {
     `--- llms-full.txt ---`,
     llmsData.llmsFullTxt || "(not found)",
     ``,
-    `--- HTML SOURCE (truncated to 30k chars) ---`,
+    `--- HTML SOURCE (truncated to 15k chars) ---`,
     page.html,
   ].join("\n");
 
