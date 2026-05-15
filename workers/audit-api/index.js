@@ -278,7 +278,7 @@ async function runAudit(url, env, detailed = false) {
   ].join("\n");
 
   const systemPrompt = detailed ? DETAILED_AUDIT_PROMPT : CORE_AUDIT_PROMPT;
-  const maxTokens = detailed ? 12000 : 6000;
+  const maxTokens = detailed ? 20000 : 10000;
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
