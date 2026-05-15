@@ -302,11 +302,27 @@ async function runAudit(url, env, detailed = false) {
   });
 
   if (!response.ok) {
+    if (response.status === 429) {
+      return {
+        error:
+          "The audit engine hit a token rate limit. This can happen when the target page has a very large HTML document, an unusually long robots.txt, or dense llms.txt content — all of which increase the number of tokens sent to the AI. Try again in a moment, or upgrade to a paid audit for priority processing.",
+        errorCode: "rate_limit",
+      };
+    }
     const err = await response.text();
     return { error: `Anthropic API error: ${response.status} — ${err}` };
   }
 
   const data = await response.json();
+
+  if (data.stop_reason === "max_tokens") {
+    return {
+      error:
+        "The page's content exceeded the AI's output limit and the audit response was cut short. Try auditing a more specific sub-page (e.g. a blog post or product page) rather than the homepage.",
+      errorCode: "response_truncated",
+    };
+  }
+
   const text = data.content
     .filter((b) => b.type === "text")
     .map((b) => b.text)
