@@ -601,15 +601,10 @@ const getAccessJWT = () => {
 const callAuditAPI = async (url, isAdmin = false, orderId = null) => {
   const headers = { "Content-Type": "application/json" };
   if (isAdmin) {
-    if (IS_LOCAL) {
-      // For local dev: reads admin key from localStorage
-      // Set it once in console: localStorage.setItem("adminKey", "your-key")
-      const key = localStorage.getItem("adminKey");
-      if (key) headers["X-Admin-Key"] = key;
-    } else {
-      const jwt = getAccessJWT();
-      if (jwt) headers["Cf-Access-Jwt-Assertion"] = jwt;
-    }
+    const key = localStorage.getItem("adminKey");
+    if (key) headers["X-Admin-Key"] = key;
+    const jwt = getAccessJWT();
+    if (jwt) headers["Cf-Access-Jwt-Assertion"] = jwt;
   }
 
   const isPaid = orderId !== null;
@@ -914,7 +909,7 @@ const DimensionCard = ({ dim, isPaid, onUnlock, priceLabel }) => {
                   size={12}
                   className="text-emerald-400 shrink-0 mt-0.5"
                 />
-                <span>{w}</span>
+                <span>{typeof w === "string" ? w : JSON.stringify(w)}</span>
               </li>
             ))}
           </ul>
@@ -1377,13 +1372,10 @@ export default function App() {
     setLoadingPending(true);
     try {
       const headers = {};
-      if (IS_LOCAL) {
-        const key = localStorage.getItem("adminKey");
-        if (key) headers["X-Admin-Key"] = key;
-      } else {
-        const jwt = getAccessJWT();
-        if (jwt) headers["Cf-Access-Jwt-Assertion"] = jwt;
-      }
+      const key = localStorage.getItem("adminKey");
+      if (key) headers["X-Admin-Key"] = key;
+      const jwt = getAccessJWT();
+      if (jwt) headers["Cf-Access-Jwt-Assertion"] = jwt;
       const res = await fetch(`${API_BASE}/api/audit/pending`, { headers });
       const data = await res.json();
       setPendingAudits(data.audits || []);
@@ -1403,13 +1395,10 @@ export default function App() {
     setApproving(true);
     try {
       const headers = { "Content-Type": "application/json" };
-      if (IS_LOCAL) {
-        const key = localStorage.getItem("adminKey");
-        if (key) headers["X-Admin-Key"] = key;
-      } else {
-        const jwt = getAccessJWT();
-        if (jwt) headers["Cf-Access-Jwt-Assertion"] = jwt;
-      }
+      const key = localStorage.getItem("adminKey");
+      if (key) headers["X-Admin-Key"] = key;
+      const jwt = getAccessJWT();
+      if (jwt) headers["Cf-Access-Jwt-Assertion"] = jwt;
       const res = await fetch(`${API_BASE}/api/audit/approve`, {
         method: "POST",
         headers,
@@ -1469,7 +1458,8 @@ export default function App() {
       document.body.removeChild(link);
       URL.revokeObjectURL(downloadUrl);
       setShowPDFModal(false);
-    } catch {
+    } catch (err) {
+      console.error("PDF generation failed:", err);
       alert("PDF generation failed. Please try again.");
     } finally {
       setPdfGenerating(false);
@@ -2044,8 +2034,11 @@ export default function App() {
                 Summary
               </h3>
               <div className="space-y-3 text-sm text-slate-300 leading-relaxed">
-                {results.executiveSummary.split(/\n\n+/).map((p, i) => (
-                  <p key={i}>{p}</p>
+                {(Array.isArray(results.executiveSummary)
+                  ? results.executiveSummary
+                  : String(results.executiveSummary).split(/\n\n+/)
+                ).map((p, i) => (
+                  <p key={i}>{typeof p === "string" ? p : JSON.stringify(p)}</p>
                 ))}
               </div>
             </div>
@@ -2202,7 +2195,11 @@ export default function App() {
                           className="text-xs leading-snug text-slate-300 flex gap-2"
                         >
                           <span className="text-cyan-400 shrink-0">▸</span>
-                          <span>{item}</span>
+                          <span>
+                            {typeof item === "string"
+                              ? item
+                              : JSON.stringify(item)}
+                          </span>
                         </li>
                       ))}
                     </ul>
@@ -2219,14 +2216,51 @@ export default function App() {
                 <Wrench size={20} className="text-cyan-400" /> Recommended Tools
               </h3>
               <div className="grid md:grid-cols-2 gap-3">
-                {results.toolRecommendations.map((tool, i) => (
-                  <div
-                    key={i}
-                    className="p-3 bg-slate-900/50 rounded-lg border border-slate-700/50 text-sm leading-snug text-slate-300"
-                  >
-                    {tool}
-                  </div>
-                ))}
+                {results.toolRecommendations.map((tool, i) => {
+                  if (typeof tool === "string") {
+                    return (
+                      <div
+                        key={i}
+                        className="p-3 bg-slate-900/50 rounded-lg border border-slate-700/50 text-sm leading-snug text-slate-300"
+                      >
+                        {tool}
+                      </div>
+                    );
+                  }
+                  const toolName =
+                    tool.name || tool.tool || tool.toolName || tool.title || "";
+                  const toolDesc =
+                    tool.description ||
+                    tool.purpose ||
+                    tool.why ||
+                    tool.reason ||
+                    "";
+                  const toolUrl = tool.url || tool.link || tool.href || null;
+                  return (
+                    <div
+                      key={i}
+                      className="p-3 bg-slate-900/50 rounded-lg border border-slate-700/50 text-sm leading-snug"
+                    >
+                      {toolUrl ? (
+                        <a
+                          href={toolUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-semibold text-cyan-400 hover:text-cyan-300"
+                        >
+                          {toolName}
+                        </a>
+                      ) : (
+                        <span className="font-semibold text-white">
+                          {toolName}
+                        </span>
+                      )}
+                      {toolDesc && (
+                        <p className="text-slate-400 mt-0.5">{toolDesc}</p>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
