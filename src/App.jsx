@@ -3,6 +3,7 @@ import { marked } from "marked";
 import { pdf } from "@react-pdf/renderer";
 import { AuditPDFDocument } from "./components/AuditPDFDocument";
 import { PDFEditModal } from "./components/PDFEditModal";
+import { ContactModal } from "./components/ContactModal";
 import { getLocalPrice, formatPrice } from "./utils/pricing";
 import {
   Search,
@@ -596,6 +597,18 @@ const IS_LOCAL =
 const getAccessJWT = () => {
   const match = document.cookie.match(/CF_Authorization=([^;]+)/);
   return match ? match[1] : null;
+};
+
+const subscribeNewsletter = async (email) => {
+  const res = await fetch(`${API_BASE}/api/newsletter`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: email.trim() }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "Subscription failed");
+  }
 };
 
 const callAuditAPI = async (url, isAdmin = false, orderId = null) => {
@@ -1260,8 +1273,11 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [auditError, setAuditError] = useState(null);
   const [auditErrorCode, setAuditErrorCode] = useState(null);
-  const [nlEmail, setNlEmail] = useState("");
-  const [nlSent, setNlSent] = useState(false);
+  const [nlHomeEmail, setNlHomeEmail] = useState("");
+  const [nlHomeSent, setNlHomeSent] = useState(false);
+  const [nlResultEmail, setNlResultEmail] = useState("");
+  const [nlResultSent, setNlResultSent] = useState(false);
+  const [showContact, setShowContact] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showPDFModal, setShowPDFModal] = useState(false);
   const [pdfGenerating, setPdfGenerating] = useState(false);
@@ -1697,7 +1713,7 @@ export default function App() {
             <p className="text-slate-400 text-sm mb-4">
               Practical GEO tips, algorithm updates, and case studies. No spam.
             </p>
-            {nlSent ? (
+            {nlHomeSent ? (
               <p className="text-emerald-400 text-sm flex items-center justify-center gap-2">
                 <CheckCircle size={16} /> You're on the list.
               </p>
@@ -1705,13 +1721,21 @@ export default function App() {
               <div className="flex gap-2">
                 <input
                   type="email"
-                  value={nlEmail}
-                  onChange={(e) => setNlEmail(e.target.value)}
+                  value={nlHomeEmail}
+                  onChange={(e) => setNlHomeEmail(e.target.value)}
                   className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-cyan-500"
                   placeholder="your@email.com"
                 />
                 <button
-                  onClick={() => nlEmail && setNlSent(true)}
+                  onClick={async () => {
+                    if (!nlHomeEmail.trim()) return;
+                    try {
+                      await subscribeNewsletter(nlHomeEmail);
+                    } catch {
+                      /* optimistic — show success regardless */
+                    }
+                    setNlHomeSent(true);
+                  }}
                   className="bg-cyan-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-cyan-500"
                 >
                   Subscribe
@@ -2377,7 +2401,7 @@ export default function App() {
             <h3 className="text-lg font-bold text-white mb-2">
               Get GEO insights in your inbox
             </h3>
-            {nlSent ? (
+            {nlResultSent ? (
               <p className="text-emerald-400 text-sm flex items-center justify-center gap-2">
                 <CheckCircle size={16} /> Subscribed.
               </p>
@@ -2385,13 +2409,21 @@ export default function App() {
               <div className="flex gap-2">
                 <input
                   type="email"
-                  value={nlEmail}
-                  onChange={(e) => setNlEmail(e.target.value)}
+                  value={nlResultEmail}
+                  onChange={(e) => setNlResultEmail(e.target.value)}
                   className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white text-sm placeholder-slate-500 focus:outline-none focus:border-cyan-500"
                   placeholder="your@email.com"
                 />
                 <button
-                  onClick={() => nlEmail && setNlSent(true)}
+                  onClick={async () => {
+                    if (!nlResultEmail.trim()) return;
+                    try {
+                      await subscribeNewsletter(nlResultEmail);
+                    } catch {
+                      /* optimistic — show success regardless */
+                    }
+                    setNlResultSent(true);
+                  }}
                   className="bg-cyan-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-cyan-500"
                 >
                   Subscribe
@@ -2645,6 +2677,12 @@ export default function App() {
             >
               Pricing
             </button>
+            <button
+              onClick={() => setShowContact(true)}
+              className="hover:text-white transition-colors"
+            >
+              Contact
+            </button>
           </div>
         </div>
       </footer>
@@ -2669,6 +2707,8 @@ export default function App() {
           isGenerating={pdfGenerating}
         />
       )}
+
+      {showContact && <ContactModal onClose={() => setShowContact(false)} />}
 
       {/* Admin review modal — opened from the pending queue */}
       {reviewingAudit && (

@@ -217,6 +217,26 @@ Respond ONLY with valid JSON (no markdown, no preamble):
   ]
 }`;
 
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+async function upsertNewsletterSubscriber(email, env) {
+  await env.DB.prepare(
+    `INSERT INTO newsletter_subscribers (email, subscribed_at)
+     VALUES (?, datetime('now'))
+     ON CONFLICT(email) DO UPDATE SET
+       subscribed_at = excluded.subscribed_at,
+       unsubscribed_at = NULL`,
+  )
+    .bind(email.trim().toLowerCase())
+    .run();
+}
+
 async function fetchTargetPage(url) {
   try {
     const res = await fetch(url, {
@@ -732,6 +752,146 @@ export default {
         }),
         { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } },
       );
+    }
+
+    // POST /api/newsletter — newsletter-only signup (homepage / results forms)
+    if (reqUrl.pathname === "/api/newsletter") {
+      const { email } = body || {};
+      if (!email || typeof email !== "string") {
+        return new Response(JSON.stringify({ error: "Email is required" }), {
+          status: 400,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+      const t = email.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t) || t.length > 320) {
+        return new Response(
+          JSON.stringify({ error: "Invalid email address" }),
+          {
+            status: 400,
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          },
+        );
+      }
+      try {
+        await upsertNewsletterSubscriber(t, env);
+      } catch (e) {
+        console.error("newsletter upsert failed:", e);
+        return new Response(JSON.stringify({ error: "Database error" }), {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
+    // POST /api/contact — contact form submission
+    if (reqUrl.pathname === "/api/contact") {
+      const { email, inquiry_type, message, subscribe } = body || {};
+      const VALID_TYPES = new Set(["general", "issue", "services"]);
+      const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+      if (!email || !EMAIL_RE.test(email.trim()) || email.trim().length > 320) {
+        return new Response(
+          JSON.stringify({ error: "Invalid email address" }),
+          {
+            status: 400,
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          },
+        );
+      }
+      if (!inquiry_type || !VALID_TYPES.has(inquiry_type)) {
+        return new Response(JSON.stringify({ error: "Invalid inquiry type" }), {
+          status: 400,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+      if (!message || !message.trim()) {
+        return new Response(JSON.stringify({ error: "Message is required" }), {
+          status: 400,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+      if (message.trim().length > 2000) {
+        return new Response(
+          JSON.stringify({
+            error: "Message must be 2000 characters or fewer",
+          }),
+          {
+            status: 400,
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          },
+        );
+      }
+
+      const trimEmail = email.trim().toLowerCase();
+      const trimMsg = message.trim();
+      const wantsNews = subscribe === true;
+      const contactId = crypto.randomUUID();
+
+      try {
+        await env.DB.prepare(
+          `INSERT INTO contacts (id, email, inquiry_type, message, subscribed, created_at)
+           VALUES (?, ?, ?, ?, ?, datetime('now'))`,
+        )
+          .bind(contactId, trimEmail, inquiry_type, trimMsg, wantsNews ? 1 : 0)
+          .run();
+      } catch (e) {
+        console.error("contacts insert failed:", e);
+        return new Response(JSON.stringify({ error: "Database error" }), {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+
+      if (wantsNews) {
+        try {
+          await upsertNewsletterSubscriber(trimEmail, env);
+        } catch (e) {
+          console.error("newsletter upsert failed for contact", contactId, e);
+        }
+      }
+
+      const LABELS = {
+        general: "General inquiry",
+        issue: "Issue",
+        services: "Request for services",
+      };
+      ctx.waitUntil(
+        (async () => {
+          if (!env.ADMIN_EMAIL || !env.RESEND_API_KEY) return;
+          try {
+            await fetch("https://api.resend.com/emails", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${env.RESEND_API_KEY}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                from: "CiteSite <noreply@citesite.net>",
+                to: env.ADMIN_EMAIL,
+                subject: `New contact: ${LABELS[inquiry_type]} from ${trimEmail}`,
+                html: `<div style="font-family:sans-serif;max-width:600px">
+                  <h2>New Contact Form Submission</h2>
+                  <p><b>From:</b> ${escHtml(trimEmail)}</p>
+                  <p><b>Type:</b> ${escHtml(LABELS[inquiry_type])}</p>
+                  <p><b>Newsletter:</b> ${wantsNews ? "Yes" : "No"}</p>
+                  <p><b>Message:</b></p>
+                  <pre style="background:#f4f4f4;padding:12px;border-radius:4px;white-space:pre-wrap">${escHtml(trimMsg)}</pre>
+                </div>`,
+              }),
+            });
+          } catch (err) {
+            console.error("Admin contact email failed:", err);
+          }
+        })(),
+      );
+
+      return new Response(JSON.stringify({ ok: true, id: contactId }), {
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
     }
 
     // POST /api/audit or /api/audit/full — run or return existing audit
