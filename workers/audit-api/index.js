@@ -193,15 +193,28 @@ RESPONSE FORMAT
 Respond ONLY with valid JSON (no markdown, no preamble):
 {
   "inspection": { ... },
-  "dimensions": [ { "id": "crawlability", "dimension": "A", "name": "Crawlability & Retrievability", "weight": 0.20, "score": 72, "confidence": "high", "observations": ["...", "..."], "checks": [{ "id": "ssr-csr", "name": "Server-side rendering", "score": 18, "maxPoints": 20, "detail": "..." }], "narrative": "...", "quickWins": ["..."], "prioritizedActions": [{ "action": "...", "effort": "Low", "impact": "High", "estimatedTrafficLift": "+5-10%" }] } ],
+  "dimensions": [
+    {
+      "id": "crawlability", "dimension": "A", "name": "Crawlability & Retrievability", "weight": 0.20,
+      "score": 72, "confidence": "high",
+      "observations": ["Robots.txt blocks /api/* but not crawl-critical paths.", "No sitemap.xml found via auto-discovery."],
+      "checks": [{ "id": "ssr-csr", "name": "Server-side rendering", "score": 18, "maxPoints": 20, "detail": "Page returns full HTML server-side." }],
+      "narrative": "Two or three paragraphs of consulting-grade analysis...",
+      "quickWins": ["Submit an XML sitemap via Google Search Console.", "Add /llms.txt with a plain-text site summary.", "Set explicit crawl-delay in robots.txt for bots that respect it."],
+      "prioritizedActions": [{ "action": "Generate and submit XML sitemap", "effort": "Low", "impact": "High", "estimatedTrafficLift": "+5-10%" }]
+    }
+  ],
   "overallScore": 65,
-  "executiveSummary": "...",
+  "executiveSummary": "Two or three paragraph executive summary...",
   "criticalIssues": [...],
   "improvements": [...],
   "signatureRecommendation": { ... },
-  "competitorInsights": { "benchmark": "...", "gaps": [...] },
-  "roadmap": { "thirtyDay": [...], "sixtyDay": [...], "ninetyDay": [...] },
-  "toolRecommendations": [...]
+  "competitorInsights": { "benchmark": "...", "gaps": ["Gap description one.", "Gap description two."] },
+  "roadmap": { "thirtyDay": ["Action string one.", "Action string two."], "sixtyDay": ["Action string one."], "ninetyDay": ["Action string one."] },
+  "toolRecommendations": [
+    { "name": "Screaming Frog SEO Spider", "url": "https://www.screamingfrog.co.uk/", "description": "Desktop crawler for technical SEO and schema auditing.", "freeTier": true },
+    { "name": "Google Search Console", "url": "https://search.google.com/search-console/", "description": "First-party index coverage and performance data.", "freeTier": true }
+  ]
 }`;
 
 async function fetchTargetPage(url) {
