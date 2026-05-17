@@ -3,7 +3,7 @@
    ───────────────────────────────────────────────────────────────────
    POST /api/audit        — Run audit (free tier results only)
    POST /api/audit/full   — Run full audit (requires payment or admin key)
-   
+
    Admin bypass:
    Send header "X-Admin-Key" matching the ADMIN_KEY secret to unlock
    full results without payment.
@@ -114,6 +114,73 @@ function corsHeaders(request, env) {
    # Enter the Application Audience tag from Zero Trust dashboard
    ═══════════════════════════════════════════════════════════════════ */
 
+const FAST_AUDIT_PROMPT = `You are CiteSite's audit engine. Score a web page for SEO and Generative Engine Optimisation (GEO) readiness. Be concise.
+
+The user message begins with a VERIFIED FACTS block. These values were obtained by the server via live HTTP requests and HTML parsing. They are ground truth — do NOT re-derive any of them from the HTML source.
+
+STEP 1 — CLASSIFY
+Using VERIFIED FACTS (visibleTextLength, likelyCsr) and HTML content:
+- contentType: article / product / service / landing / FAQ / listicle / portfolio / homepage
+- rendering: "ssr" if visibleTextLength > 1000, "csr" if likelyCsr is true, otherwise "hybrid"
+
+STEP 2 — SCORE SIX DIMENSIONS
+For each dimension produce: id, score (0–100), confidence (high/medium/low), ONE observation (1–2 sentences), and only the checks listed. Score checks directly from VERIFIED FACTS — no HTML scanning needed for pre-parsed values.
+
+(A) id="crawlability", name="Crawlability & Retrievability", weight=0.20
+    checks: "ssr-csr" (from rendering assessment), "sitemap" (from inspection.sitemap VERIFIED FACT)
+
+(B) id="content-structure", name="Content Structure", weight=0.20
+    checks: "semantic-html" (from semanticElements), "heading-hierarchy" (from headingStructure), "lists-tables" (from listCount)
+
+(C) id="structured-data", name="Structured Data & Machine-Readable Signals", weight=0.15
+    checks: "jsonld-present" (from schemas / jsonLdPresent VERIFIED FACT)
+
+(D) id="eeat", name="E-E-A-T & Citability", weight=0.15
+    checks: [] (score from HTML analysis)
+
+(E) id="content-quality", name="Content Quality & Topical Completeness", weight=0.15
+    checks: [] (score from HTML analysis)
+
+(F) id="technical-seo", name="On-page Technical SEO", weight=0.15
+    checks: "canonical" (canonical), "https" (https), "mobile" (mobileViewport), "og-tags" (ogTags), "twitter-card" (twitterCard), "title-tag" (titleTag), "meta-desc" (metaDescription), "h1" (h1), "img-alt" (imgAltStats), "url-structure" (urlStructure)
+    Score each check directly from its VERIFIED FACT value.
+
+STEP 3 — OVERALL SCORE
+Weighted average of six dimension scores, rounded to nearest integer.
+
+STEP 4 — ONE CRITICAL ISSUE
+{ "title": "≤8 words", "description": "1–2 sentences" }
+No fix, no code snippet.
+
+STEP 5 — ONE IMPROVEMENT
+{ "rank": 1, "dimension": "letter A–F", "title": "≤8 words" }
+No description, no impact, no effort.
+
+RESPONSE FORMAT
+Respond ONLY with valid JSON, no markdown, no preamble:
+{
+  "contentType": "article",
+  "rendering": "ssr",
+  "dimensions": [
+    {
+      "id": "crawlability",
+      "dimension": "A",
+      "name": "Crawlability & Retrievability",
+      "weight": 0.20,
+      "score": 72,
+      "confidence": "high",
+      "observations": ["One key finding here."],
+      "checks": [
+        { "id": "ssr-csr", "name": "Server-side rendering", "score": 80, "maxPoints": 100, "detail": "Full HTML returned." },
+        { "id": "sitemap", "name": "Sitemap present", "score": 100, "maxPoints": 100, "detail": "sitemap.xml found." }
+      ]
+    }
+  ],
+  "overallScore": 65,
+  "criticalIssues": [{ "title": "No structured data present", "description": "No JSON-LD schema found, reducing AI citability." }],
+  "improvements": [{ "rank": 1, "dimension": "C", "title": "Add Article schema markup" }]
+}`;
+
 const CORE_AUDIT_PROMPT = `You are CiteSite's audit engine. You analyse web pages for SEO and Generative Engine Optimisation (GEO) readiness.
 
 STEP 1 — FETCH AND INSPECT
@@ -122,7 +189,7 @@ The user will provide a URL and the HTML source of a page. Before scoring, deter
 - Content type: article, product, service, landing, FAQ, listicle, portfolio, homepage.
 - Schema present: list every JSON-LD @type found and summarise each.
 - Presence of /robots.txt, /sitemap.xml, /llms.txt, /llms-full.txt: copy the boolean values EXACTLY from the "VERIFIED FACTS" block at the top of the user message — they were obtained by live HTTP requests and are authoritative. Never re-derive these from HTML or make assumptions.
-- HTTP status, canonical tag, hreflang, mobile viewport, HTTPS.
+- HTTP status, canonical tag, hreflang, mobile viewport, HTTPS, title, meta description, h1, heading structure, OG tags, Twitter card, JSON-LD schemas, img alt stats, URL structure: these are all in the VERIFIED FACTS block — copy the values verbatim and do not re-derive them from HTML.
 
 If the page returns an empty or near-empty shell to a non-JS crawler, halt the scoring breakdown and return that finding as the headline output, with remediation options (SSR, SSG, prerendering, static schema injection).
 
@@ -165,7 +232,7 @@ The user will provide a URL and the HTML source of a page. Before scoring, deter
 - Content type: article, product, service, landing, FAQ, listicle, portfolio, homepage.
 - Schema present: list every JSON-LD @type found and summarise each.
 - Presence of /robots.txt, /sitemap.xml, /llms.txt, /llms-full.txt: copy the boolean values EXACTLY from the "VERIFIED FACTS" block at the top of the user message — they were obtained by live HTTP requests and are authoritative. Never re-derive these from HTML or make assumptions.
-- HTTP status, canonical tag, hreflang, mobile viewport, HTTPS.
+- HTTP status, canonical tag, hreflang, mobile viewport, HTTPS, title, meta description, h1, heading structure, OG tags, Twitter card, JSON-LD schemas, img alt stats, URL structure: these are all in the VERIFIED FACTS block — copy the values verbatim and do not re-derive them from HTML.
 
 STEP 2 — SCORE ACROSS SIX WEIGHTED DIMENSIONS
 For each dimension provide: a 0-100 score, a confidence level (high / medium / low), and 2-4 specific observations.
@@ -237,17 +304,26 @@ async function upsertNewsletterSubscriber(email, env) {
     .run();
 }
 
-async function fetchTargetPage(url, htmlLimit = 30000) {
+function stripNonContent(html) {
+  return html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, "")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+async function fetchTargetPage(url) {
   try {
     const res = await fetch(url, {
       headers: { "User-Agent": "CiteSiteBot/1.0 (+https://citesite.net)" },
       redirect: "follow",
     });
-    const html = await res.text();
-    const status = res.status;
-    return { html: html.slice(0, htmlLimit), status, finalUrl: res.url };
+    const rawHtml = await res.text();
+    return { rawHtml, status: res.status, finalUrl: res.url };
   } catch (err) {
-    return { html: null, status: 0, finalUrl: url, error: err.message };
+    return { rawHtml: null, status: 0, finalUrl: url, error: err.message };
   }
 }
 
@@ -290,32 +366,223 @@ async function fetchSitemap(url) {
   }
 }
 
+function extractPageMetadata(html, url) {
+  const meta = {};
+
+  meta.https = url.startsWith("https://");
+
+  try {
+    const u = new URL(url);
+    meta.urlStructure = {
+      protocol: u.protocol,
+      pathDepth:
+        u.pathname === "/" ? 0 : u.pathname.split("/").filter(Boolean).length,
+      hasHyphens: /[a-z]+-[a-z]+/.test(u.pathname),
+      pathLength: u.pathname.length,
+      hasQueryString: u.search.length > 0,
+    };
+  } catch {
+    meta.urlStructure = null;
+  }
+
+  const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  meta.titleTag = titleMatch ? titleMatch[1].trim() : null;
+
+  const descMatch =
+    html.match(
+      /<meta\s+name=["']description["']\s+content=["']([^"']*)["']/i,
+    ) ||
+    html.match(/<meta\s+content=["']([^"']*)["']\s+name=["']description["']/i);
+  meta.metaDescription = descMatch ? descMatch[1].trim() : null;
+
+  const canonicalMatch =
+    html.match(
+      /<link\b[^>]*\brel=["']canonical["'][^>]*\bhref=["']([^"']*)["']/i,
+    ) ||
+    html.match(
+      /<link\b[^>]*\bhref=["']([^"']*)["'][^>]*\brel=["']canonical["']/i,
+    );
+  meta.canonical = canonicalMatch ? canonicalMatch[1].trim() : null;
+
+  meta.mobileViewport =
+    /<meta\b[^>]*\bname=["']viewport["'][^>]*>/i.test(html) ||
+    /<meta\b[^>]*content=["'][^"']*width=device-width[^"']*["'][^>]*>/i.test(
+      html,
+    );
+
+  const hreflangRe =
+    /<link\b[^>]*\bhreflang=["']([^"']*)["'][^>]*\bhref=["']([^"']*)["']/gi;
+  meta.hreflang = [];
+  let hlm;
+  while ((hlm = hreflangRe.exec(html)) !== null) {
+    meta.hreflang.push({ lang: hlm[1], href: hlm[2] });
+  }
+
+  const jsonldRe =
+    /<script\b[^>]*\btype=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  meta.schemas = [];
+  let jm;
+  while ((jm = jsonldRe.exec(html)) !== null) {
+    try {
+      const obj = JSON.parse(jm[1].trim());
+      meta.schemas.push({ type: obj["@type"] || null, raw: obj });
+    } catch {
+      meta.schemas.push({ type: null, parseError: true });
+    }
+  }
+
+  const ogRe =
+    /<meta\b[^>]*\bproperty=["'](og:[^"']*)["'][^>]*\bcontent=["']([^"']*)["']/gi;
+  meta.ogTags = {};
+  let ogm;
+  while ((ogm = ogRe.exec(html)) !== null) {
+    meta.ogTags[ogm[1]] = ogm[2];
+  }
+  const ogReRev =
+    /<meta\b[^>]*\bcontent=["']([^"']*)["'][^>]*\bproperty=["'](og:[^"']*)["']/gi;
+  while ((ogm = ogReRev.exec(html)) !== null) {
+    if (!meta.ogTags[ogm[2]]) meta.ogTags[ogm[2]] = ogm[1];
+  }
+
+  const twRe =
+    /<meta\b[^>]*\bname=["'](twitter:[^"']*)["'][^>]*\bcontent=["']([^"']*)["']/gi;
+  meta.twitterCard = {};
+  let twm;
+  while ((twm = twRe.exec(html)) !== null) {
+    meta.twitterCard[twm[1]] = twm[2];
+  }
+  const twReRev =
+    /<meta\b[^>]*\bcontent=["']([^"']*)["'][^>]*\bname=["'](twitter:[^"']*)["']/gi;
+  while ((twm = twReRev.exec(html)) !== null) {
+    if (!meta.twitterCard[twm[2]]) meta.twitterCard[twm[2]] = twm[1];
+  }
+
+  const h1Match = html.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i);
+  meta.h1 = h1Match ? h1Match[1].replace(/<[^>]+>/g, "").trim() : null;
+
+  meta.headingStructure = {
+    h1: (html.match(/<h1\b/gi) || []).length,
+    h2: (html.match(/<h2\b/gi) || []).length,
+    h3: (html.match(/<h3\b/gi) || []).length,
+    h4: (html.match(/<h4\b/gi) || []).length,
+  };
+
+  const allImgs = html.match(/<img\b[^>]*/gi) || [];
+  const imgsWithAlt = allImgs.filter((tag) =>
+    /\balt=["'][^"']+["']/i.test(tag),
+  );
+  meta.imgAltStats = {
+    total: allImgs.length,
+    withAlt: imgsWithAlt.length,
+    missing: allImgs.length - imgsWithAlt.length,
+  };
+
+  meta.listCount = {
+    ul: (html.match(/<ul\b/gi) || []).length,
+    ol: (html.match(/<ol\b/gi) || []).length,
+    table: (html.match(/<table\b/gi) || []).length,
+  };
+
+  meta.semanticElements = {
+    article: (html.match(/<article\b/gi) || []).length,
+    section: (html.match(/<section\b/gi) || []).length,
+    nav: (html.match(/<nav\b/gi) || []).length,
+    main: (html.match(/<main\b/gi) || []).length,
+    aside: (html.match(/<aside\b/gi) || []).length,
+    header: (html.match(/<header\b/gi) || []).length,
+    footer: (html.match(/<footer\b/gi) || []).length,
+  };
+
+  const visibleText = html
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  meta.visibleTextLength = visibleText.length;
+  meta.likelyCsr = visibleText.length < 500;
+
+  return meta;
+}
+
+function buildVerifiedFacts(
+  meta,
+  robotsTxtFound,
+  sitemapFound,
+  llmsTxtFound,
+  llmsFullTxtFound,
+) {
+  return [
+    `VERIFIED FACTS — pre-fetched and pre-parsed by the server. Accept all values below as`,
+    `ground truth. Do NOT re-derive any of them from the HTML source.`,
+    ``,
+    `## HTTP`,
+    `  inspection.robotsTxt   = ${robotsTxtFound}   [${robotsTxtFound ? "HTTP 200" : "HTTP 404 / not found"}]`,
+    `  inspection.sitemap     = ${sitemapFound}   [${sitemapFound ? "HTTP 200" : "HTTP 404 / not found"}]`,
+    `  inspection.llmsTxt     = ${llmsTxtFound}   [${llmsTxtFound ? "HTTP 200" : "HTTP 404 / not found"}]`,
+    `  inspection.llmsFullTxt = ${llmsFullTxtFound}   [${llmsFullTxtFound ? "HTTP 200" : "HTTP 404 / not found"}]`,
+    ``,
+    `## On-page metadata`,
+    `  https            = ${meta.https}`,
+    `  titleTag         = ${JSON.stringify(meta.titleTag)}`,
+    `  metaDescription  = ${JSON.stringify(meta.metaDescription)}`,
+    `  canonical        = ${JSON.stringify(meta.canonical)}`,
+    `  mobileViewport   = ${meta.mobileViewport}`,
+    `  h1               = ${JSON.stringify(meta.h1)}`,
+    `  headingStructure = ${JSON.stringify(meta.headingStructure)}`,
+    `  imgAltStats      = ${JSON.stringify(meta.imgAltStats)}`,
+    `  listCount        = ${JSON.stringify(meta.listCount)}`,
+    `  semanticElements = ${JSON.stringify(meta.semanticElements)}`,
+    `  hreflang         = ${JSON.stringify(meta.hreflang)}`,
+    ``,
+    `## Structured data`,
+    `  schemas (JSON-LD @types): ${
+      meta.schemas
+        .filter((s) => s.type)
+        .map((s) => s.type)
+        .join(", ") || "none"
+    }`,
+    `  jsonLdPresent    = ${meta.schemas.some((s) => s.type !== null)}`,
+    ``,
+    `## Social / OG`,
+    `  ogTags           = ${JSON.stringify(meta.ogTags)}`,
+    `  twitterCard      = ${JSON.stringify(meta.twitterCard)}`,
+    ``,
+    `## URL`,
+    `  urlStructure     = ${JSON.stringify(meta.urlStructure)}`,
+    ``,
+    `## SSR/CSR heuristic`,
+    `  visibleTextLength = ${meta.visibleTextLength} chars (measured after tag removal)`,
+    `  likelyCsr         = ${meta.likelyCsr}`,
+  ].join("\n");
+}
+
 async function runAudit(url, env, detailed = false) {
   const htmlLimit = detailed ? 30000 : 15000;
   const [page, robotsTxt, sitemapXml, llmsData] = await Promise.all([
-    fetchTargetPage(url, htmlLimit),
+    fetchTargetPage(url),
     fetchRobotsTxt(url),
     fetchSitemap(url),
     fetchLlmsTxt(url),
   ]);
 
-  if (!page.html) {
+  if (!page.rawHtml) {
     return { error: `Could not fetch page: ${page.error}` };
   }
+
+  const metadata = extractPageMetadata(page.rawHtml, page.finalUrl);
+  const cleanedHtml = stripNonContent(page.rawHtml).slice(0, htmlLimit);
 
   const robotsTxtFound = robotsTxt !== null;
   const sitemapFound = sitemapXml !== null;
   const llmsTxtFound = llmsData.llmsTxt !== null;
   const llmsFullTxtFound = llmsData.llmsFullTxt !== null;
 
-  const verifiedFacts = [
-    `VERIFIED FACTS — pre-fetched by the server via HTTP; use these exact values verbatim`,
-    `in the inspection block. Do NOT re-derive them from the HTML source or make assumptions.`,
-    `  inspection.robotsTxt   = ${robotsTxtFound}   [${robotsTxtFound ? "HTTP 200" : "HTTP 404 / not found"}]`,
-    `  inspection.sitemap     = ${sitemapFound}   [${sitemapFound ? "HTTP 200" : "HTTP 404 / not found"}]`,
-    `  inspection.llmsTxt     = ${llmsTxtFound}   [${llmsTxtFound ? "HTTP 200" : "HTTP 404 / not found"}]`,
-    `  inspection.llmsFullTxt = ${llmsFullTxtFound}   [${llmsFullTxtFound ? "HTTP 200" : "HTTP 404 / not found"}]`,
-  ].join("\n");
+  const verifiedFacts = buildVerifiedFacts(
+    metadata,
+    robotsTxtFound,
+    sitemapFound,
+    llmsTxtFound,
+    llmsFullTxtFound,
+  );
 
   const userMessage = [
     verifiedFacts,
@@ -338,12 +605,12 @@ async function runAudit(url, env, detailed = false) {
     `--- llms-full.txt ---`,
     llmsData.llmsFullTxt ? llmsData.llmsFullTxt.slice(0, 3000) : "(not found)",
     ``,
-    `--- HTML SOURCE (truncated to ${htmlLimit / 1000}k chars) ---`,
-    page.html,
+    `--- HTML SOURCE (scripts/styles stripped, truncated to ${htmlLimit / 1000}k chars) ---`,
+    cleanedHtml,
   ].join("\n");
 
-  const systemPrompt = detailed ? DETAILED_AUDIT_PROMPT : CORE_AUDIT_PROMPT;
-  const maxTokens = detailed ? 20000 : 10000;
+  const systemPrompt = detailed ? DETAILED_AUDIT_PROMPT : FAST_AUDIT_PROMPT;
+  const maxTokens = detailed ? 20000 : 3000;
   const model = detailed
     ? env.ANTHROPIC_MODEL || "claude-opus-4-7"
     : env.FREE_AUDIT_MODEL || "claude-haiku-4-5-20251001";
@@ -429,7 +696,29 @@ async function runAudit(url, env, detailed = false) {
 
   try {
     const clean = fullText.replace(/```json|```/g, "").trim();
-    return JSON.parse(clean);
+    const parsed = JSON.parse(clean);
+    if (!detailed) {
+      const workerInspection = {
+        https: metadata.https,
+        canonical: metadata.canonical,
+        mobileViewport: metadata.mobileViewport,
+        hreflang: metadata.hreflang,
+        schemas: metadata.schemas,
+        robotsTxt: robotsTxtFound,
+        sitemap: sitemapFound,
+        llmsTxt: llmsTxtFound,
+        llmsFullTxt: llmsFullTxtFound,
+        criticalBlocker: metadata.likelyCsr ? "likely-csr" : null,
+      };
+      parsed.inspection = {
+        ...workerInspection,
+        contentType: parsed.contentType || null,
+        rendering: parsed.rendering || null,
+      };
+      delete parsed.contentType;
+      delete parsed.rendering;
+    }
+    return parsed;
   } catch {
     return { error: "Failed to parse audit response", raw: fullText };
   }
@@ -479,12 +768,8 @@ function filterFreeTier(results) {
       Array.isArray(dim.observations) && dim.observations.length > 0
         ? [dim.observations[0]]
         : [],
-    // Free checks keep score+detail; paid checks are nulled.
-    checks: (dim.checks || []).map((c) =>
-      FREE_CHECK_IDS.has(c.id)
-        ? c
-        : { ...c, score: null, detail: LOCKED_TEXT, locked: true },
-    ),
+    // All checks from FAST_AUDIT_PROMPT are free-tier checks — pass through.
+    checks: (dim.checks || []).map((c) => c),
     // STEP 5 fields stripped entirely for free tier.
     narrative: undefined,
     quickWins: undefined,
