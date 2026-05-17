@@ -237,7 +237,7 @@ async function upsertNewsletterSubscriber(email, env) {
     .run();
 }
 
-async function fetchTargetPage(url) {
+async function fetchTargetPage(url, htmlLimit = 30000) {
   try {
     const res = await fetch(url, {
       headers: { "User-Agent": "CiteSiteBot/1.0 (+https://citesite.net)" },
@@ -245,7 +245,7 @@ async function fetchTargetPage(url) {
     });
     const html = await res.text();
     const status = res.status;
-    return { html: html.slice(0, 30000), status, finalUrl: res.url };
+    return { html: html.slice(0, htmlLimit), status, finalUrl: res.url };
   } catch (err) {
     return { html: null, status: 0, finalUrl: url, error: err.message };
   }
@@ -291,8 +291,9 @@ async function fetchSitemap(url) {
 }
 
 async function runAudit(url, env, detailed = false) {
+  const htmlLimit = detailed ? 30000 : 15000;
   const [page, robotsTxt, sitemapXml, llmsData] = await Promise.all([
-    fetchTargetPage(url),
+    fetchTargetPage(url, htmlLimit),
     fetchRobotsTxt(url),
     fetchSitemap(url),
     fetchLlmsTxt(url),
@@ -337,12 +338,15 @@ async function runAudit(url, env, detailed = false) {
     `--- llms-full.txt ---`,
     llmsData.llmsFullTxt ? llmsData.llmsFullTxt.slice(0, 3000) : "(not found)",
     ``,
-    `--- HTML SOURCE (truncated to 30k chars) ---`,
+    `--- HTML SOURCE (truncated to ${htmlLimit / 1000}k chars) ---`,
     page.html,
   ].join("\n");
 
   const systemPrompt = detailed ? DETAILED_AUDIT_PROMPT : CORE_AUDIT_PROMPT;
   const maxTokens = detailed ? 20000 : 10000;
+  const model = detailed
+    ? env.ANTHROPIC_MODEL || "claude-opus-4-7"
+    : env.FREE_AUDIT_MODEL || "claude-haiku-4-5-20251001";
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -352,7 +356,7 @@ async function runAudit(url, env, detailed = false) {
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
-      model: env.ANTHROPIC_MODEL || "claude-opus-4-7",
+      model,
       max_tokens: maxTokens,
       stream: true,
       system: [
