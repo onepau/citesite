@@ -121,7 +121,7 @@ The user will provide a URL and the HTML source of a page. Before scoring, deter
 - Does the page return substantive HTML server-side, or is it a JavaScript-rendered shell? Flag any divergence.
 - Content type: article, product, service, landing, FAQ, listicle, portfolio, homepage.
 - Schema present: list every JSON-LD @type found and summarise each.
-- Presence of /robots.txt, /sitemap.xml, /llms.txt, /llms-full.txt references.
+- Presence of /robots.txt, /sitemap.xml, /llms.txt, /llms-full.txt: copy the boolean values EXACTLY from the "VERIFIED FACTS" block at the top of the user message — they were obtained by live HTTP requests and are authoritative. Never re-derive these from HTML or make assumptions.
 - HTTP status, canonical tag, hreflang, mobile viewport, HTTPS.
 
 If the page returns an empty or near-empty shell to a non-JS crawler, halt the scoring breakdown and return that finding as the headline output, with remediation options (SSR, SSG, prerendering, static schema injection).
@@ -164,7 +164,7 @@ The user will provide a URL and the HTML source of a page. Before scoring, deter
 - Does the page return substantive HTML server-side, or is it a JavaScript-rendered shell? Flag any divergence.
 - Content type: article, product, service, landing, FAQ, listicle, portfolio, homepage.
 - Schema present: list every JSON-LD @type found and summarise each.
-- Presence of /robots.txt, /sitemap.xml, /llms.txt, /llms-full.txt references.
+- Presence of /robots.txt, /sitemap.xml, /llms.txt, /llms-full.txt: copy the boolean values EXACTLY from the "VERIFIED FACTS" block at the top of the user message — they were obtained by live HTTP requests and are authoritative. Never re-derive these from HTML or make assumptions.
 - HTTP status, canonical tag, hreflang, mobile viewport, HTTPS.
 
 STEP 2 — SCORE ACROSS SIX WEIGHTED DIMENSIONS
@@ -279,10 +279,22 @@ async function fetchLlmsTxt(url) {
   }
 }
 
+async function fetchSitemap(url) {
+  try {
+    const origin = new URL(url).origin;
+    const res = await fetch(`${origin}/sitemap.xml`);
+    if (res.ok) return await res.text();
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 async function runAudit(url, env, detailed = false) {
-  const [page, robotsTxt, llmsData] = await Promise.all([
+  const [page, robotsTxt, sitemapXml, llmsData] = await Promise.all([
     fetchTargetPage(url),
     fetchRobotsTxt(url),
+    fetchSitemap(url),
     fetchLlmsTxt(url),
   ]);
 
@@ -290,7 +302,23 @@ async function runAudit(url, env, detailed = false) {
     return { error: `Could not fetch page: ${page.error}` };
   }
 
+  const robotsTxtFound = robotsTxt !== null;
+  const sitemapFound = sitemapXml !== null;
+  const llmsTxtFound = llmsData.llmsTxt !== null;
+  const llmsFullTxtFound = llmsData.llmsFullTxt !== null;
+
+  const verifiedFacts = [
+    `VERIFIED FACTS — pre-fetched by the server via HTTP; use these exact values verbatim`,
+    `in the inspection block. Do NOT re-derive them from the HTML source or make assumptions.`,
+    `  inspection.robotsTxt   = ${robotsTxtFound}   [${robotsTxtFound ? "HTTP 200" : "HTTP 404 / not found"}]`,
+    `  inspection.sitemap     = ${sitemapFound}   [${sitemapFound ? "HTTP 200" : "HTTP 404 / not found"}]`,
+    `  inspection.llmsTxt     = ${llmsTxtFound}   [${llmsTxtFound ? "HTTP 200" : "HTTP 404 / not found"}]`,
+    `  inspection.llmsFullTxt = ${llmsFullTxtFound}   [${llmsFullTxtFound ? "HTTP 200" : "HTTP 404 / not found"}]`,
+  ].join("\n");
+
   const userMessage = [
+    verifiedFacts,
+    ``,
     `Audit this page:`,
     ``,
     `URL: ${url}`,
@@ -299,6 +327,9 @@ async function runAudit(url, env, detailed = false) {
     ``,
     `--- robots.txt ---`,
     robotsTxt ? robotsTxt.slice(0, 2000) : "(not found or inaccessible)",
+    ``,
+    `--- sitemap.xml ---`,
+    sitemapXml ? sitemapXml.slice(0, 2000) : "(not found or inaccessible)",
     ``,
     `--- llms.txt ---`,
     llmsData.llmsTxt ? llmsData.llmsTxt.slice(0, 3000) : "(not found)",
