@@ -327,10 +327,12 @@ async function fetchTargetPage(url) {
   }
 }
 
+const BOT_UA = { "User-Agent": "CiteSiteBot/1.0 (+https://citesite.net)" };
+
 async function fetchRobotsTxt(url) {
   try {
     const origin = new URL(url).origin;
-    const res = await fetch(`${origin}/robots.txt`);
+    const res = await fetch(`${origin}/robots.txt`, { headers: BOT_UA });
     if (res.ok) return await res.text();
     return null;
   } catch {
@@ -342,10 +344,10 @@ async function fetchLlmsTxt(url) {
   try {
     const origin = new URL(url).origin;
     const [llms, llmsFull] = await Promise.all([
-      fetch(`${origin}/llms.txt`)
+      fetch(`${origin}/llms.txt`, { headers: BOT_UA })
         .then((r) => (r.ok ? r.text() : null))
         .catch(() => null),
-      fetch(`${origin}/llms-full.txt`)
+      fetch(`${origin}/llms-full.txt`, { headers: BOT_UA })
         .then((r) => (r.ok ? r.text() : null))
         .catch(() => null),
     ]);
@@ -358,8 +360,11 @@ async function fetchLlmsTxt(url) {
 async function fetchSitemap(url) {
   try {
     const origin = new URL(url).origin;
-    const res = await fetch(`${origin}/sitemap.xml`);
-    if (res.ok) return await res.text();
+    // Try /sitemap.xml first, then /sitemap_index.xml
+    for (const path of ["/sitemap.xml", "/sitemap_index.xml"]) {
+      const res = await fetch(`${origin}${path}`, { headers: BOT_UA });
+      if (res.ok) return await res.text();
+    }
     return null;
   } catch {
     return null;
@@ -557,7 +562,7 @@ function buildVerifiedFacts(
 
 async function runAudit(url, env, detailed = false) {
   const htmlLimit = detailed ? 30000 : 15000;
-  const [page, robotsTxt, sitemapXml, llmsData] = await Promise.all([
+  const [page, robotsTxt, rawSitemap, llmsData] = await Promise.all([
     fetchTargetPage(url),
     fetchRobotsTxt(url),
     fetchSitemap(url),
@@ -566,6 +571,25 @@ async function runAudit(url, env, detailed = false) {
 
   if (!page.rawHtml) {
     return { error: `Could not fetch page: ${page.error}` };
+  }
+
+  // If /sitemap.xml and /sitemap_index.xml both failed, try Sitemap: directives from robots.txt
+  let sitemapXml = rawSitemap;
+  if (!sitemapXml && robotsTxt) {
+    const declared = [...robotsTxt.matchAll(/^Sitemap:\s*(.+)$/gim)].map((m) =>
+      m[1].trim(),
+    );
+    for (const sitemapUrl of declared.slice(0, 3)) {
+      try {
+        const r = await fetch(sitemapUrl, { headers: BOT_UA });
+        if (r.ok) {
+          sitemapXml = await r.text();
+          break;
+        }
+      } catch {
+        // skip
+      }
+    }
   }
 
   const metadata = extractPageMetadata(page.rawHtml, page.finalUrl);
@@ -863,6 +887,62 @@ export default {
     // ── GET endpoints ──────────────────────────────────────────────
 
     if (request.method === "GET") {
+      // GET /api/audit/debug-fetch?url=X — admin only: diagnose what the worker can reach
+      if (reqUrl.pathname === "/api/audit/debug-fetch") {
+        if (!isAdminRequest) {
+          return new Response(JSON.stringify({ error: "Forbidden" }), {
+            status: 403,
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          });
+        }
+        const targetUrl = reqUrl.searchParams.get("url");
+        if (!targetUrl) {
+          return new Response(JSON.stringify({ error: "Missing url param" }), {
+            status: 400,
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          });
+        }
+        const origin = new URL(targetUrl).origin;
+        const probe = async (u) => {
+          try {
+            const r = await fetch(u, {
+              headers: {
+                "User-Agent": "CiteSiteBot/1.0 (+https://citesite.net)",
+              },
+              redirect: "follow",
+            });
+            const body = await r.text();
+            return {
+              status: r.status,
+              ok: r.ok,
+              bodySnippet: body.slice(0, 300),
+              finalUrl: r.url,
+            };
+          } catch (e) {
+            return { status: 0, ok: false, error: e.message };
+          }
+        };
+        const [robotsResult, sitemapResult, sitemapIdxResult] =
+          await Promise.all([
+            probe(`${origin}/robots.txt`),
+            probe(`${origin}/sitemap.xml`),
+            probe(`${origin}/sitemap_index.xml`),
+          ]);
+        return new Response(
+          JSON.stringify(
+            {
+              origin,
+              robotsTxt: robotsResult,
+              sitemapXml: sitemapResult,
+              sitemapIndex: sitemapIdxResult,
+            },
+            null,
+            2,
+          ),
+          { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } },
+        );
+      }
+
       // GET /api/audit/pending — admin only: list audits awaiting review
       if (reqUrl.pathname === "/api/audit/pending") {
         if (!isAdminRequest) {
