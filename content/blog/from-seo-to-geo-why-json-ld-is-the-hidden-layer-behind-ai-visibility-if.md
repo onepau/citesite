@@ -1,5 +1,5 @@
 ---
-title: "From SEO to GEO: Why JSON-LD Is the Hidden Layer Behind AI Visibility  If"
+title: "From SEO to GEO: Why JSON-LD Is the Hidden Layer Behind AI Visibility"
 date: 2026-05-18T17:39:00.000+02:00
 category: Structured Data
 excerpt: Learn about the importance of JSON-LD schema for making websites
