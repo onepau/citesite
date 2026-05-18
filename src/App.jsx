@@ -1355,6 +1355,16 @@ export default function App() {
     }
   }, [paymentSuccess, orderId, auditUrl]);
 
+  // Deep-link to a blog post via ?post=<slug>
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const postSlug = params.get("post");
+    if (!postSlug) return;
+    const match = BLOG_POSTS.find((p) => p.slug === postSlug);
+    if (match) loadPost(match);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Load audit for returning user arriving via ?orderId=X link from approval email
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1444,6 +1454,7 @@ export default function App() {
   const loadPost = (post) => {
     setSelectedPost(post);
     setPage(PAGES.POST);
+    window.history.pushState({}, "", `?post=${post.slug}`);
     const raw = mdFiles[`../content/blog/${post.slug}.md`];
     if (raw) {
       const body = raw.replace(/^---[\s\S]*?---\n/, "");
@@ -1552,7 +1563,10 @@ export default function App() {
               Audit
             </button>
             <button
-              onClick={() => setPage(PAGES.BLOG)}
+              onClick={() => {
+                window.history.pushState({}, "", window.location.pathname);
+                setPage(PAGES.BLOG);
+              }}
               className="text-slate-400 hover:text-white transition-colors"
             >
               Blog
@@ -1590,6 +1604,7 @@ export default function App() {
             </button>
             <button
               onClick={() => {
+                window.history.pushState({}, "", window.location.pathname);
                 setPage(PAGES.BLOG);
                 setMenuOpen(false);
               }}
@@ -2477,7 +2492,10 @@ export default function App() {
       {page === PAGES.POST && selectedPost && (
         <div className="max-w-2xl mx-auto px-4 py-12">
           <button
-            onClick={() => setPage(PAGES.BLOG)}
+            onClick={() => {
+              window.history.pushState({}, "", window.location.pathname);
+              setPage(PAGES.BLOG);
+            }}
             className="text-slate-400 text-sm mb-8 hover:text-white flex items-center gap-1"
           >
             <ChevronRight size={14} className="rotate-180" /> Back to Blog
