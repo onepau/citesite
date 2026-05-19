@@ -371,6 +371,59 @@ async function fetchSitemap(url) {
   }
 }
 
+function validateAuditUrl(raw) {
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return { ok: false, error: "Invalid URL" };
+  }
+
+  if (!["http:", "https:"].includes(parsed.protocol)) {
+    return { ok: false, error: "URL must use http or https" };
+  }
+
+  const host = parsed.hostname.toLowerCase();
+
+  if (host === "localhost" || host === "127.0.0.1" || host === "::1") {
+    return { ok: false, error: "URL not allowed" };
+  }
+
+  const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4) {
+    const [a, b] = [Number(ipv4[1]), Number(ipv4[2])];
+    if (
+      a === 0 ||
+      a === 10 ||
+      a === 127 ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      a >= 240
+    ) {
+      return { ok: false, error: "URL not allowed" };
+    }
+  }
+
+  if (host.startsWith("[")) {
+    const ipv6 = host.slice(1, -1).toLowerCase();
+    if (
+      ipv6 === "::1" ||
+      ipv6.startsWith("fe80") ||
+      ipv6.startsWith("fc") ||
+      ipv6.startsWith("fd")
+    ) {
+      return { ok: false, error: "URL not allowed" };
+    }
+  }
+
+  if (!host.includes(".") && !ipv4) {
+    return { ok: false, error: "URL must include a valid domain name" };
+  }
+
+  return { ok: true };
+}
+
 function extractPageMetadata(html, url) {
   const meta = {};
 
@@ -580,6 +633,7 @@ async function runAudit(url, env, detailed = false) {
       m[1].trim(),
     );
     for (const sitemapUrl of declared.slice(0, 3)) {
+      if (!validateAuditUrl(sitemapUrl).ok) continue;
       try {
         const r = await fetch(sitemapUrl, { headers: BOT_UA });
         if (r.ok) {
@@ -898,6 +952,13 @@ export default {
         const targetUrl = reqUrl.searchParams.get("url");
         if (!targetUrl) {
           return new Response(JSON.stringify({ error: "Missing url param" }), {
+            status: 400,
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          });
+        }
+        const debugUrlCheck = validateAuditUrl(targetUrl);
+        if (!debugUrlCheck.ok) {
+          return new Response(JSON.stringify({ error: debugUrlCheck.error }), {
             status: 400,
             headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
           });
@@ -1320,6 +1381,14 @@ export default {
 
     if (!body.url) {
       return new Response(JSON.stringify({ error: "Missing url field" }), {
+        status: 400,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
+    const urlCheck = validateAuditUrl(body.url);
+    if (!urlCheck.ok) {
+      return new Response(JSON.stringify({ error: urlCheck.error }), {
         status: 400,
         headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
       });
