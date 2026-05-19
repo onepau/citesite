@@ -1,8 +1,4 @@
-import { useState, useEffect } from "react";
-import { marked } from "marked";
-import { pdf } from "@react-pdf/renderer";
-import { AuditPDFDocument } from "./components/AuditPDFDocument";
-import { PDFEditModal } from "./components/PDFEditModal";
+import { useState, useEffect, Suspense, lazy } from "react";
 import { ContactModal } from "./components/ContactModal";
 import { getLocalPrice, formatPrice } from "./utils/pricing";
 import {
@@ -16,12 +12,10 @@ import {
   CreditCard,
   X,
   ArrowRight,
-  BarChart3,
   Shield,
   FileText,
   Globe,
   Eye,
-  Zap,
   Menu,
   Star,
   TrendingUp,
@@ -33,14 +27,9 @@ import {
   Clock,
   CheckCircle2,
 } from "lucide-react";
-import {
-  RadarChart,
-  Radar,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  ResponsiveContainer,
-} from "recharts";
+
+const PDFEditModal = lazy(() => import("./components/PDFEditModal"));
+const AuditRadarChart = lazy(() => import("./components/AuditRadarChart"));
 
 const mdFiles = import.meta.glob("../content/blog/*.md", {
   query: "?raw",
@@ -1484,12 +1473,13 @@ export default function App() {
   const priceLabel = localPrice ? formatPrice(localPrice) : "CHF 49.99";
   const isLocalisedPrice = localPrice && localPrice.currency !== "CHF";
 
-  const loadPost = (post) => {
+  const loadPost = async (post) => {
     setSelectedPost(post);
     setPage(PAGES.POST);
     window.history.pushState({}, "", `?post=${post.slug}`);
     const raw = mdFiles[`../content/blog/${post.slug}.md`];
     if (raw) {
+      const { marked } = await import("marked");
       const body = raw.replace(/^---[\s\S]*?---\n/, "");
       setPostContent(marked.parse(body));
     } else {
@@ -1500,6 +1490,10 @@ export default function App() {
   const handleGeneratePDF = async (editedData) => {
     setPdfGenerating(true);
     try {
+      const [{ pdf }, { AuditPDFDocument }] = await Promise.all([
+        import("@react-pdf/renderer"),
+        import("./components/AuditPDFDocument"),
+      ]);
       const blob = await pdf(
         <AuditPDFDocument auditData={editedData} url={auditUrl} />,
       ).toBlob();
@@ -2155,27 +2149,9 @@ export default function App() {
               </div>
             </div>
             <div className="bg-slate-800/80 rounded-xl border border-slate-700/50 p-4">
-              <ResponsiveContainer width="100%" height={200}>
-                <RadarChart data={radarData}>
-                  <PolarGrid stroke="#334155" />
-                  <PolarAngleAxis
-                    dataKey="dim"
-                    tick={{ fill: "#94a3b8", fontSize: 11 }}
-                  />
-                  <PolarRadiusAxis
-                    domain={[0, 100]}
-                    tick={false}
-                    axisLine={false}
-                  />
-                  <Radar
-                    dataKey="score"
-                    stroke="#06b6d4"
-                    fill="#06b6d4"
-                    fillOpacity={0.2}
-                    strokeWidth={2}
-                  />
-                </RadarChart>
-              </ResponsiveContainer>
+              <Suspense fallback={<div className="h-[200px]" />}>
+                <AuditRadarChart data={radarData} />
+              </Suspense>
             </div>
           </div>
 
@@ -2853,28 +2829,32 @@ export default function App() {
       {IS_LOCAL && <DevAdminPanel />}
 
       {showPDFModal && results && (
-        <PDFEditModal
-          auditData={results}
-          url={auditUrl}
-          onClose={() => setShowPDFModal(false)}
-          onGenerate={handleGeneratePDF}
-          isGenerating={pdfGenerating}
-        />
+        <Suspense fallback={null}>
+          <PDFEditModal
+            auditData={results}
+            url={auditUrl}
+            onClose={() => setShowPDFModal(false)}
+            onGenerate={handleGeneratePDF}
+            isGenerating={pdfGenerating}
+          />
+        </Suspense>
       )}
 
       {showContact && <ContactModal onClose={() => setShowContact(false)} />}
 
       {/* Admin review modal — opened from the pending queue */}
       {reviewingAudit && (
-        <PDFEditModal
-          auditData={reviewingAudit.results}
-          url={reviewingAudit.url}
-          onClose={() => setReviewingAudit(null)}
-          onGenerate={handleGeneratePDF}
-          isGenerating={pdfGenerating}
-          onApprove={handleApprove}
-          isApproving={approving}
-        />
+        <Suspense fallback={null}>
+          <PDFEditModal
+            auditData={reviewingAudit.results}
+            url={reviewingAudit.url}
+            onClose={() => setReviewingAudit(null)}
+            onGenerate={handleGeneratePDF}
+            isGenerating={pdfGenerating}
+            onApprove={handleApprove}
+            isApproving={approving}
+          />
+        </Suspense>
       )}
     </div>
   );
