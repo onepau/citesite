@@ -1,0 +1,183 @@
+# CiteSite
+
+> CiteSite is an AI-powered website audit tool that scores how well a site is optimised for visibility in AI-powered search engines and large language models — including ChatGPT, Perplexity, Gemini, and Claude.
+
+## About
+
+CiteSite audits websites across six weighted dimensions: crawlability, structured data, content quality, AI citability, technical SEO, and authority signals. It produces an overall score out of 100 and surfaces prioritised recommendations. A free audit is available instantly; a full paid report includes detailed narratives, quick wins, a 30/60/90 day roadmap, competitor gap analysis, and a 16-page PDF delivered within 48 hours.
+
+CiteSite is designed for website owners, SEO professionals, and marketing teams who want to understand and improve their visibility in AI-mediated search experiences — not just traditional search rankings.
+
+---
+
+## Home Page
+
+URL: https://citesite.net/
+
+**Headline:** See how AI search engines see your website
+
+**Description:** Get an instant audit across six weighted dimensions — from crawlability to citability. Discover what's helping and hurting your visibility in ChatGPT, Perplexity, Gemini, and beyond.
+
+### The Six Audit Dimensions
+
+CiteSite scores every website across six weighted dimensions, each assigned a letter grade A–F:
+
+**A. Crawlability**
+Assesses whether AI bots can access and render your site's content. Covers SSR vs CSR, robots.txt directives (including AI-bot rules for GPTBot, ClaudeBot, PerplexityBot, Google-Extended, CCBot), sitemap, canonical URLs, response codes, llms.txt / llms-full.txt, HTTPS, and mobile rendering. A poor crawlability score means AI bots see empty or broken content regardless of how well the rest of the site is optimised.
+
+**B. Content Structure**
+Evaluates how well your content is structured for AI comprehension and direct answer extraction. Covers heading hierarchy, semantic HTML, answer-ready content blocks, FAQ sections, definition sentences, and structured use of lists and tables. Well-structured content is easier for AI systems to quote and cite accurately.
+
+**C. Structured Data**
+Measures the presence, validity, and completeness of JSON-LD schema markup. Covers schema type appropriateness (Article, Product, FAQPage, etc.), linked @graph relationships, datePublished / dateModified, Open Graph metadata, and Twitter card tags. Schema provides explicit semantic context that AI systems rely on to identify who you are and what your pages are about.
+
+**D. Authority Signals**
+Examines signals that indicate expertise, authoritativeness, and trustworthiness — aligned with Google's E-E-A-T framework. Covers named authorship with bio and credentials, Person and Organisation schema, outbound citations to primary sources, original data or research, about/contact pages, sameAs links, and press or review mentions.
+
+**E. Content Quality**
+Assesses depth, originality, and relevance relative to likely query intent. Covers coverage of adjacent entities and follow-up questions, evidence of primary research or first-hand experience, content freshness, and originality versus commodity content. This dimension evaluates whether your content is genuinely useful and distinct — the standard AI systems are increasingly applying.
+
+**F. Technical SEO**
+Reviews foundational on-page SEO signals: title tag, meta description, H1, image alt text, internal linking, URL structure, Core Web Vitals signals, and mobile viewport tag. While traditional SEO, these signals remain important inputs for AI ranking and citation decisions.
+
+---
+
+## Pricing
+
+URL: https://citesite.net/?page=pricing
+
+### Free Audit
+
+An instant free audit is available for any URL. The free audit returns an overall score out of 100 and a high-level summary across the six dimensions. No account required.
+
+### Full Report — CHF 49.99
+
+The paid full report is a detailed 16-page PDF that combines AI analysis with human expert review. It includes:
+
+- Executive summary (3–5 paragraphs)
+- Full 6-dimension audit with per-dimension narratives and quick wins
+- Prioritised actions with effort, impact, and traffic-lift estimates
+- Competitor gap analysis and 30/60/90 day roadmap
+- Tool recommendations and ready-to-implement JSON-LD code snippets
+- Delivered as a 16-page PDF within 48 hours
+
+Payment is processed securely via Stripe. The report is delivered by email to the address provided at checkout.
+
+---
+
+## Blog
+
+URL: https://citesite.net/?page=blog
+
+---
+
+### What Is Generative Engine Optimisation (GEO)?
+
+URL: https://citesite.net/?post=what-is-geo
+Category: GEO Fundamentals
+Published: 2026-04-28
+Read time: 8 min
+
+Search has changed. When someone types a question into Google, ChatGPT, or Perplexity today, they often receive a direct answer — synthesised, confident, and sourced from a handful of trusted pages. Your website may rank on page one and still be invisible in that response. That's the problem GEO is designed to solve.
+
+**Generative Engine Optimisation (GEO)** is the practice of structuring your website so that AI-powered search engines can understand, trust, and cite your content. Where traditional SEO focuses on getting pages to rank, GEO focuses on getting content to be *used* — pulled into AI Overviews, featured in chatbot responses, and quoted by the large language models that an increasing proportion of your potential audience now relies on for answers.
+
+#### Why it matters right now
+
+AI search adoption is accelerating rapidly. Tools like Google's AI Overviews, Perplexity, and ChatGPT Search are reshaping how people find information — and they are highly selective about their sources. Pages that lack clear structure, authoritative signals, and machine-readable context are simply passed over, regardless of their traditional search ranking.
+
+GEO isn't a replacement for SEO. It's the next layer. And the websites that get ahead of this shift now will hold a significant advantage as AI-mediated discovery becomes the norm.
+
+#### What a GEO audit covers
+
+A proper GEO audit examines how well your site communicates with AI systems — from your structured data and metadata to your content architecture, entity signals, and crawlability. It identifies exactly where you're losing visibility and what to do about it.
+
+---
+
+### The Importance of Having an llms.txt File
+
+URL: https://citesite.net/?post=the-importance-of-having-an-llms-txt-file
+Category: GEO Fundamentals
+Published: 2026-05-11
+Read time: 5 min
+
+An llms.txt file might sound niche today, but it's quickly becoming a critical part of modern SEO and GEO strategy. As AI-driven search tools like OpenAI ChatGPT, Google Gemini, and other large language models increasingly shape how users discover information, websites need clearer ways to communicate with these systems.
+
+Think of llms.txt as a guidebook for AI. It helps language models understand which parts of your site matter most, which content is authoritative, and how your information should be interpreted. While traditional SEO focused on search engine crawlers, GEO (Generative Engine Optimisation) is about influencing how AI systems summarise, cite, and recommend your brand.
+
+A strong llms.txt file typically includes:
+
+- Your preferred site description and expertise areas
+- Key URLs and priority content sections
+- Citation preferences and canonical resources
+- Guidance on structured content or documentation
+- Instructions that reduce AI confusion or hallucination risks
+
+The goal isn't just visibility — it's accuracy. Without clear signals, AI tools may misunderstand your content, overlook valuable pages, or fail to associate your brand with the topics you want to own.
+
+Implementation itself is relatively simple, but strategy is where most businesses fall short. The real challenge is deciding what AI systems should prioritise and how that aligns with your broader SEO, content, and authority-building efforts.
+
+That's why forward-thinking brands are beginning to audit their sites specifically for AI discoverability, not just search rankings. An llms.txt file is no longer a "future-proofing" exercise — it's becoming part of building a resilient online presence in the AI era.
+
+---
+
+### From SEO to GEO: Why JSON-LD Is the Hidden Layer Behind AI Visibility
+
+URL: https://citesite.net/?post=from-seo-to-geo-why-json-ld-is-the-hidden-layer-behind-ai-visibility
+Category: Structured Data
+Published: 2026-05-18
+Read time: 5 min
+
+JSON-LD schema has quietly become one of the most important tools for online discoverability — not just for search engines, but for AI systems and large language models (LLMs) as well.
+
+In simple terms, JSON-LD is structured data that helps machines understand what your website content actually means. Rather than forcing AI systems to "guess" whether a page is about a product, article, organisation, or service, schema provides explicit context. That clarity is increasingly valuable in the era of AI-generated answers and conversational search.
+
+Modern LLMs don't just scan keywords. They look for signals of authority, relevance, and structure. Well-implemented schema helps these systems identify:
+
+- Who your business is
+- What your pages are about
+- Which content is authoritative
+- How different pieces of information connect together
+
+The result? Improved discoverability, more accurate AI summaries, and a greater chance of being surfaced in generative search experiences.
+
+For businesses investing heavily in content, failing to implement structured data is like publishing a book without chapter titles. Your information may still exist online, but AI systems are far less likely to interpret it correctly or prioritise it confidently.
+
+This is especially important when combined with emerging GEO practices such as llms.txt files. While llms.txt helps guide AI systems toward your preferred content and positioning, JSON-LD schema provides the semantic structure that helps those systems understand your site at a deeper level. Together, they create a stronger foundation for AI visibility.
+
+The technical setup itself is relatively straightforward. The real value lies in strategy: choosing the right schema types, aligning them with your authority goals, and ensuring AI systems consistently interpret your brand the way you intend.
+
+---
+
+### E-E-A-T: The Credibility Layer
+
+URL: https://citesite.net/?post=e-e-a-t-the-credibility-layer
+Category: GEO Fundamentals
+Published: 2026-05-20
+Read time: 5 min
+
+**Why AI search needs humans to decide what's worth quoting**
+
+Most discussions of AI search optimisation focus on what machines can read: structured data, heading hierarchies, metadata. But there's a layer underneath all of that — one that determines whether an AI system considers your content *credible enough to cite in the first place*. That layer has a name: E-E-A-T.
+
+#### What E-E-A-T actually is
+
+E-E-A-T stands for **Experience, Expertise, Authoritativeness, and Trustworthiness**. It originates in Google's Search Quality Rater Guidelines — a document used to train human evaluators who assess whether pages genuinely serve users well. The framework gained its first "E" (Experience) in December 2022, reflecting a growing emphasis on first-hand knowledge over secondhand aggregation.
+
+The four signals work as a hierarchy, but Trust sits at the top. A page can appear experienced and authoritative and still fail if the underlying content is inaccurate, anonymous, or lacking clear provenance.
+
+#### The human-in-the-loop you didn't know about
+
+E-E-A-T is not an algorithm. It is a framework applied by *human quality raters* — contractors who manually review pages and score them against Google's guidelines. Their assessments don't directly affect individual rankings, but they feed into how Google trains and calibrates its ranking systems over time.
+
+This makes E-E-A-T one of the clearest examples of human-in-the-loop design in production AI. The outputs of these evaluations shape what the model learns to reward — meaning the entire edifice of AI-generated search results rests, in part, on human judgement about what trustworthy content looks like. That's a meaningful architectural choice, and it has practical implications for how you build content.
+
+#### What it means for AIO
+
+The signals that quality raters look for map almost directly onto what AI Overviews and answer engines use when deciding what to cite. Clear authorship. Named expertise. Transparency about methodology, sources, and perspective. Content that demonstrates the author has *actually done the thing* rather than synthesised it from elsewhere.
+
+This last point — Experience — is where the most recent updates have added pressure. Generic, abstract content that reads as competent but impersonal is increasingly scrutinised. Content with clear first-hand grounding: dated accounts, named locations, specific outcomes, attributed perspectives — this is what both human raters and the systems they train are looking for.
+
+The practical implication: treat your About page, author bio, and any methodology you describe not as supporting material, but as core E-E-A-T infrastructure. These are the signals that tell both humans and machines whether your content is worth quoting — or merely worth reading.
+
+*One important nuance: E-E-A-T is an evaluative framework, not a direct ranking signal. You cannot "add E-E-A-T" to a page the way you add schema markup. What you can do is ensure the signals it looks for are present, visible, and honest.*

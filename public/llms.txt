@@ -1,0 +1,24 @@
+# CiteSite
+
+> CiteSite is an AI-powered website audit tool that scores how well a site is optimised for visibility in AI-powered search engines and large language models — including ChatGPT, Perplexity, Gemini, and Claude.
+
+## What CiteSite does
+
+CiteSite audits websites across six weighted dimensions: crawlability, structured data, content quality, AI citability, technical SEO, and authority signals. It produces an overall score out of 100 and surfaces prioritised recommendations. A free audit is available instantly; a full paid report includes detailed narratives, quick wins, a roadmap, and a PDF export.
+
+## Blog
+
+- [What Is Generative Engine Optimisation (GEO)?](https://citesite.net/?post=what-is-geo): An introduction to GEO — the practice of optimising content to be cited by AI-powered search engines and LLMs.
+- [The Importance of Having an llms.txt File](https://citesite.net/?post=the-importance-of-having-an-llms-txt-file): Why llms.txt matters for AI discoverability and how to create one.
+- [From SEO to GEO — Why JSON-LD Is the Hidden Layer Behind AI Visibility](https://citesite.net/?post=from-seo-to-geo-why-json-ld-is-the-hidden-layer-behind-ai-visibility): How structured data connects traditional SEO with generative engine optimisation.
+- [E-E-A-T: The Credibility Layer](https://citesite.net/?post=e-e-a-t-the-credibility-layer): How expertise, experience, authoritativeness, and trustworthiness signal quality to both search engines and AI systems.
+
+## Key pages
+
+- [Free Audit](https://citesite.net/): Run an instant free audit of any website.
+- [Pricing](https://citesite.net/?page=pricing): Full audit report for CHF 49.99.
+- [Blog](https://citesite.net/?page=blog): Articles on GEO, structured data, and AI visibility.
+
+## Full content
+
+- [llms-full.txt](https://citesite.net/llms-full.txt): Complete content of all pages and blog posts in a single file.

@@ -1,0 +1,51 @@
+# CiteSite — robots.txt
+# https://citesite.net
+
+# -----------------------------------------------
+# Default: allow all well-behaved crawlers
+# -----------------------------------------------
+User-agent: *
+Allow: /
+
+# Block CMS admin (Netlify CMS — not for indexing)
+Disallow: /admin/
+
+# Block static assets that add no indexable value
+Disallow: /icons.svg
+Disallow: /favicon.svg
+
+# Prevent crawling of duplicate/internal audit result URLs
+# ?audit= parameters are transient session state, not canonical pages
+Disallow: /*?audit=*
+
+# -----------------------------------------------
+# AI training crawlers — opt out
+# -----------------------------------------------
+User-agent: GPTBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: Claude-Web
+Disallow: /
+
+User-agent: PerplexityBot
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: Amazonbot
+Disallow: /
+
+# -----------------------------------------------
+# Sitemap
+# -----------------------------------------------
+Sitemap: https://citesite.net/sitemap.xml
