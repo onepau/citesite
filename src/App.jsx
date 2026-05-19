@@ -611,6 +611,13 @@ const subscribeNewsletter = async (email) => {
   }
 };
 
+const normaliseUrl = (raw) => {
+  const candidate = /^https?:\/\//i.test(raw.trim())
+    ? raw.trim()
+    : `https://${raw.trim()}`;
+  return new URL(candidate).toString();
+};
+
 const callAuditAPI = async (url, isAdmin = false, orderId = null) => {
   const headers = { "Content-Type": "application/json" };
   if (isAdmin) {
@@ -646,6 +653,8 @@ const callAuditAPI = async (url, isAdmin = false, orderId = null) => {
     err.code = data.errorCode || null;
     throw err;
   }
+
+  if (data.alreadyAudited) return data;
 
   // Merge API dimension data with local config (for icon, shortName, static recommendations)
   // while preserving all top-level fields (criticalIssues, improvements, signatureRecommendation, inspection)
@@ -1287,10 +1296,13 @@ export default function App() {
   const [orderId, setOrderId] = useState(null);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [pendingReviewUrl, setPendingReviewUrl] = useState(null);
+  const [alreadyAudited, setAlreadyAudited] = useState(null);
   // Admin approval queue state
   const [pendingAudits, setPendingAudits] = useState([]);
   const [loadingPending, setLoadingPending] = useState(false);
   const [reviewingAudit, setReviewingAudit] = useState(null);
+  const [freeAuditLog, setFreeAuditLog] = useState([]);
+  const [loadingFreeLog, setLoadingFreeLog] = useState(false);
   const [approving, setApproving] = useState(false);
   const [approveSuccess, setApproveSuccess] = useState(false);
 
@@ -1412,8 +1424,29 @@ export default function App() {
     }
   };
 
+  const fetchFreeAuditLog = async () => {
+    setLoadingFreeLog(true);
+    try {
+      const headers = {};
+      const key = localStorage.getItem("adminKey");
+      if (key) headers["X-Admin-Key"] = key;
+      const jwt = getAccessJWT();
+      if (jwt) headers["Cf-Access-Jwt-Assertion"] = jwt;
+      const res = await fetch(`${API_BASE}/api/audit/free-log`, { headers });
+      const data = await res.json();
+      setFreeAuditLog(data.audits || []);
+    } catch (err) {
+      console.error("Failed to fetch free audit log:", err);
+    } finally {
+      setLoadingFreeLog(false);
+    }
+  };
+
   useEffect(() => {
-    if (isAdmin) fetchPendingAudits();
+    if (isAdmin) {
+      fetchPendingAudits();
+      fetchFreeAuditLog();
+    }
   }, [isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleApprove = async (editedData) => {
@@ -1495,13 +1528,40 @@ export default function App() {
 
   const runAudit = async () => {
     if (!url.trim()) return;
+
+    let normalisedUrl;
+    try {
+      normalisedUrl = normaliseUrl(url.trim());
+    } catch {
+      setAuditError("Please enter a valid URL (e.g. https://example.com)");
+      return;
+    }
+
+    // Check localStorage for a prior free audit on this device
+    if (!isAdmin && localStorage.getItem(`ca:${normalisedUrl}`)) {
+      const cached = JSON.parse(localStorage.getItem(`ca:${normalisedUrl}`));
+      setAlreadyAudited({ url: normalisedUrl, score: cached.score });
+      return;
+    }
+
     setLoading(true);
     setAuditError(null);
     setAuditErrorCode(null);
+    setAlreadyAudited(null);
     setPendingReviewUrl(null);
-    setAuditUrl(url.trim());
+    setAuditUrl(normalisedUrl);
     try {
-      const data = await callAuditAPI(url.trim(), isAdmin);
+      const data = await callAuditAPI(normalisedUrl, isAdmin);
+      if (data.alreadyAudited) {
+        setAlreadyAudited({ url: normalisedUrl, score: data.score });
+        return;
+      }
+      if (!isAdmin) {
+        localStorage.setItem(
+          `ca:${normalisedUrl}`,
+          JSON.stringify({ score: data.overallScore, ts: Date.now() }),
+        );
+      }
       setResults(data);
       setPage(PAGES.RESULTS);
     } catch (err) {
@@ -1660,6 +1720,40 @@ export default function App() {
                 <Search size={18} /> Audit
               </button>
             </div>
+
+            {alreadyAudited && (
+              <div className="mt-6 max-w-xl mx-auto bg-slate-800/70 border border-cyan-500/20 rounded-xl px-5 py-4 text-left">
+                <p className="text-white font-semibold mb-1">
+                  You&rsquo;ve already audited this site
+                </p>
+                <p className="text-slate-400 text-sm mb-3">
+                  Your free audit of{" "}
+                  <span className="text-cyan-400 font-mono">
+                    {alreadyAudited.url}
+                  </span>{" "}
+                  gave an overall score of{" "}
+                  <span className="text-white font-semibold">
+                    {alreadyAudited.score}/100
+                  </span>
+                  . Get the full six-dimension breakdown, prioritised
+                  recommendations, and a PDF report.
+                </p>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <button
+                    onClick={() => setShowPayment(true)}
+                    className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-5 py-2 rounded-lg font-semibold text-sm hover:from-cyan-400 hover:to-blue-500 transition-all"
+                  >
+                    Get Full Report — {priceLabel}
+                  </button>
+                  <button
+                    onClick={() => setAlreadyAudited(null)}
+                    className="text-slate-500 text-sm hover:text-slate-300 transition-colors"
+                  >
+                    Audit a different site
+                  </button>
+                </div>
+              </div>
+            )}
           </section>
 
           {/* DIMENSIONS PREVIEW */}
@@ -1953,6 +2047,48 @@ export default function App() {
                     >
                       Review
                     </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Free audit log */}
+          <section className="max-w-4xl mx-auto px-4 pb-16">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-white font-semibold text-lg">
+                Free Audit Log
+                {freeAuditLog.length > 0 && (
+                  <span className="ml-2 text-slate-500 text-sm font-normal">
+                    (last {freeAuditLog.length})
+                  </span>
+                )}
+              </h2>
+              <button
+                onClick={fetchFreeAuditLog}
+                disabled={loadingFreeLog}
+                className="text-slate-400 hover:text-white text-xs px-3 py-1.5 rounded-lg border border-slate-700 hover:border-slate-500 transition-colors disabled:opacity-50"
+              >
+                {loadingFreeLog ? "Refreshing…" : "Refresh"}
+              </button>
+            </div>
+            {loadingFreeLog ? (
+              <p className="text-slate-500 text-sm">Loading…</p>
+            ) : freeAuditLog.length === 0 ? (
+              <p className="text-slate-500 text-sm">No free audits yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {freeAuditLog.map((audit) => (
+                  <div
+                    key={audit.id}
+                    className="bg-slate-800/50 border border-slate-700/30 rounded-lg px-4 py-2.5 flex items-center justify-between gap-4"
+                  >
+                    <p className="text-slate-300 font-mono text-sm truncate">
+                      {audit.url}
+                    </p>
+                    <p className="text-slate-500 text-xs shrink-0">
+                      {new Date(audit.created_at).toLocaleString()}
+                    </p>
                   </div>
                 ))}
               </div>

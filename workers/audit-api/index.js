@@ -967,6 +967,26 @@ export default {
         });
       }
 
+      // GET /api/audit/free-log — admin only: list recent free-tier audits
+      if (reqUrl.pathname === "/api/audit/free-log") {
+        if (!isAdminRequest) {
+          return new Response(JSON.stringify({ error: "Forbidden" }), {
+            status: 403,
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          });
+        }
+        const rows = await env.DB.prepare(
+          `SELECT id, url, created_at
+           FROM audits
+           WHERE order_id IS NULL
+           ORDER BY created_at DESC
+           LIMIT 10`,
+        ).all();
+        return new Response(JSON.stringify({ audits: rows.results || [] }), {
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+
       // GET /api/audit/results?orderId=X — fetch existing audit for returning user
       if (reqUrl.pathname === "/api/audit/results") {
         const orderId = reqUrl.searchParams.get("orderId");
@@ -1305,6 +1325,14 @@ export default {
       });
     }
 
+    // Normalise URL for consistent deduplication lookups
+    let normalisedUrl = body.url;
+    try {
+      normalisedUrl = new URL(body.url).toString();
+    } catch {
+      // use as-is; runAudit will surface the fetch error
+    }
+
     // Full endpoint requires payment OR admin key
     let order = null;
     if (isFullEndpoint && !isAdminRequest) {
@@ -1344,6 +1372,25 @@ export default {
 
     const isPaidRequest = isFullEndpoint || isAdminRequest;
 
+    // Block repeat free audits — direct user to paid tier
+    if (!isPaidRequest) {
+      const prior = await env.DB.prepare(
+        "SELECT results_json FROM audits WHERE url = ? AND order_id IS NULL ORDER BY created_at DESC LIMIT 1",
+      )
+        .bind(normalisedUrl)
+        .first();
+      if (prior) {
+        const priorResults = JSON.parse(prior.results_json);
+        return new Response(
+          JSON.stringify({
+            alreadyAudited: true,
+            score: priorResults.overallScore,
+          }),
+          { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } },
+        );
+      }
+    }
+
     // For paid orders: return existing audit if one already exists (idempotent)
     if (isPaidRequest && body.orderId) {
       const existingAudit = await env.DB.prepare(
@@ -1368,7 +1415,46 @@ export default {
       }
     }
 
-    const results = await runAudit(body.url, env, isPaidRequest);
+    // Reuse recent free audit for paid tier — ensures score consistency
+    if (isPaidRequest && !isAdminRequest) {
+      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const freeAudit = await env.DB.prepare(
+        "SELECT * FROM audits WHERE url = ? AND order_id IS NULL AND created_at > ? ORDER BY created_at DESC LIMIT 1",
+      )
+        .bind(normalisedUrl, cutoff)
+        .first();
+      if (freeAudit) {
+        const auditId = crypto.randomUUID();
+        try {
+          await env.DB.prepare(
+            "INSERT INTO audits (id, order_id, url, results_json, review_status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          )
+            .bind(
+              auditId,
+              body.orderId || null,
+              normalisedUrl,
+              freeAudit.results_json,
+              "pending_review",
+              new Date().toISOString(),
+            )
+            .run();
+        } catch (e) {
+          console.error("DB insert failed (free reuse):", e);
+        }
+        const freeResults = JSON.parse(freeAudit.results_json);
+        return new Response(
+          JSON.stringify({
+            auditId,
+            ...freeResults,
+            tier: "paid",
+            reviewStatus: "pending_review",
+          }),
+          { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } },
+        );
+      }
+    }
+
+    const results = await runAudit(normalisedUrl, env, isPaidRequest);
 
     if (results.error) {
       return new Response(JSON.stringify(results), {
@@ -1388,7 +1474,7 @@ export default {
         .bind(
           auditId,
           body.orderId || null,
-          body.url,
+          normalisedUrl,
           JSON.stringify(results),
           reviewStatus,
           new Date().toISOString(),
