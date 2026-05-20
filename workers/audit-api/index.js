@@ -329,11 +329,14 @@ async function fetchTargetPage(url) {
 
 const BOT_UA = { "User-Agent": "CiteSiteBot/1.0 (+https://citesite.net)" };
 
+const isHtmlResponse = (res) =>
+  (res.headers.get("content-type") || "").includes("text/html");
+
 async function fetchRobotsTxt(url) {
   try {
     const origin = new URL(url).origin;
     const res = await fetch(`${origin}/robots.txt`, { headers: BOT_UA });
-    if (res.ok) return await res.text();
+    if (res.ok && !isHtmlResponse(res)) return await res.text();
     return null;
   } catch {
     return null;
@@ -343,12 +346,13 @@ async function fetchRobotsTxt(url) {
 async function fetchLlmsTxt(url) {
   try {
     const origin = new URL(url).origin;
+    const notHtml = (r) => (r.ok && !isHtmlResponse(r) ? r.text() : null);
     const [llms, llmsFull] = await Promise.all([
       fetch(`${origin}/llms.txt`, { headers: BOT_UA })
-        .then((r) => (r.ok ? r.text() : null))
+        .then(notHtml)
         .catch(() => null),
       fetch(`${origin}/llms-full.txt`, { headers: BOT_UA })
-        .then((r) => (r.ok ? r.text() : null))
+        .then(notHtml)
         .catch(() => null),
     ]);
     return { llmsTxt: llms, llmsFullTxt: llmsFull };
@@ -363,7 +367,7 @@ async function fetchSitemap(url) {
     // Try /sitemap.xml first, then /sitemap_index.xml
     for (const path of ["/sitemap.xml", "/sitemap_index.xml"]) {
       const res = await fetch(`${origin}${path}`, { headers: BOT_UA });
-      if (res.ok) return await res.text();
+      if (res.ok && !isHtmlResponse(res)) return await res.text();
     }
     return null;
   } catch {
