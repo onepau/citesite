@@ -22,6 +22,7 @@ function corsHeaders(request, env) {
 export default {
   async fetch(request, env) {
     const CORS_HEADERS = corsHeaders(request, env);
+    const reqUrl = new URL(request.url);
 
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
@@ -38,9 +39,37 @@ export default {
       return new Response(JSON.stringify({ error: "Invalid JSON body" }), { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
     }
 
-    const { email, url } = body || {};
-    if (!email) return new Response(JSON.stringify({ error: "Missing email" }), { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
+    // POST /api/coupon/validate — look up a Stripe promotion code
+    if (reqUrl.pathname === "/api/coupon/validate") {
+      const { code } = body || {};
+      if (!code || typeof code !== "string" || !code.trim()) {
+        return new Response(JSON.stringify({ valid: false, error: "Code is required" }), { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
+      }
+      const stripeKey = env.STRIPE_SECRET_KEY;
+      if (!stripeKey) {
+        return new Response(JSON.stringify({ valid: false, error: "Not configured" }), { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
+      }
+      const res = await fetch(
+        `https://api.stripe.com/v1/promotion_codes?code=${encodeURIComponent(code.trim().toUpperCase())}&active=true&limit=1`,
+        { headers: { Authorization: `Bearer ${stripeKey}` } }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.data?.length) {
+        return new Response(JSON.stringify({ valid: false }), { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
+      }
+      const promo = data.data[0];
+      const coupon = promo.coupon;
+      const discountDescription = coupon.percent_off
+        ? `${coupon.percent_off}% off`
+        : `${(coupon.amount_off / 100).toFixed(0)} ${coupon.currency.toUpperCase()} off`;
+      return new Response(
+        JSON.stringify({ valid: true, discountDescription, promotionCodeId: promo.id }),
+        { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
 
+    const { email, url, promotionCodeId } = body || {};
+    if (!email) return new Response(JSON.stringify({ error: "Missing email" }), { status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } });
     // create a local order record (pending)
     const orderId = crypto.randomUUID();
     const amount = env.PRICE_CHF_CENTS ? Number(env.PRICE_CHF_CENTS) : 4999; // default CHF 49.99
@@ -67,8 +96,14 @@ export default {
     params.append('line_items[0][quantity]', '1');
     params.append('payment_method_types[]', 'card');
     if (email) params.append('customer_email', email);
-    // attach our internal order id so we can match in the webhook using metadata
+    // Attach our internal order id so we can match in the webhook using metadata
     params.append('metadata[order_id]', orderId);
+    // Apply promotion code if provided, otherwise allow Stripe-hosted entry
+    if (promotionCodeId) {
+      params.append('discounts[0][promotion_code]', promotionCodeId);
+    } else {
+      params.append('allow_promotion_codes', 'true');
+    }
 
     const stripeKey = env.STRIPE_SECRET_KEY;
     if (!stripeKey) {

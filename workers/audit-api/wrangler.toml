@@ -4,7 +4,8 @@ compatibility_date = "2026-04-24"
 routes = [
   { pattern = "api.citesite.net/api/audit*", zone_name = "citesite.net" },
   { pattern = "api.citesite.net/api/contact", zone_name = "citesite.net" },
-  { pattern = "api.citesite.net/api/newsletter", zone_name = "citesite.net" }
+  { pattern = "api.citesite.net/api/newsletter", zone_name = "citesite.net" },
+  { pattern = "api.citesite.net/api/schema-forge", zone_name = "citesite.net" }
 ]
 
 [vars]

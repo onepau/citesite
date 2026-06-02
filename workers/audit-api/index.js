@@ -114,6 +114,20 @@ function corsHeaders(request, env) {
    # Enter the Application Audience tag from Zero Trust dashboard
    ═══════════════════════════════════════════════════════════════════ */
 
+const SCHEMA_FORGE_PROMPT = (url) =>
+  `Generate JSON-LD structured data in valid JSON format for the web page at this URL: ${url}
+
+Use the Article schema with the following fields:
+@context, @type, headline, description, articleBody, author (with name, jobTitle, and organization), datePublished, keywords, articleSection, publisher (with name and logo), and mainEntityOfPage (URL).
+
+Additionally, automatically detect and include any of the following if present:
+- FAQ Section → Use FAQPage schema with all Question and Answer pairs.
+- How-To Guides → Use the HowTo schema with steps in the proper order.
+- Products or Services Mentioned → Use Product schema.
+- Events or Webinars Promoted → Use Event schema.
+
+The output must be a single <script type="application/ld+json"> block in valid JSON format with proper string quoting. Do not include comments or additional explanations — simply return the schema block, ready for copy and paste.`;
+
 const FAST_AUDIT_PROMPT = `You are CiteSite's audit engine. Score a web page for SEO and Generative Engine Optimisation (GEO) readiness. Be concise.
 
 The user message begins with a VERIFIED FACTS block. These values were obtained by the server via live HTTP requests and HTML parsing. They are ground truth — do NOT re-derive any of them from the HTML source.
@@ -1237,6 +1251,53 @@ export default {
         }),
         { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } },
       );
+    }
+
+    // POST /api/schema-forge — proxy to Anthropic to generate JSON-LD schema for a URL
+    if (reqUrl.pathname === "/api/schema-forge") {
+      const { url: targetUrl } = body || {};
+      if (!targetUrl || typeof targetUrl !== "string" || !targetUrl.trim()) {
+        return new Response(JSON.stringify({ error: "URL is required" }), {
+          status: 400,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+      try { new URL(targetUrl); } catch {
+        return new Response(JSON.stringify({ error: "Invalid URL" }), {
+          status: 400,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+      const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": env.ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: env.FREE_AUDIT_MODEL || "claude-haiku-4-5-20251001",
+          max_tokens: 2000,
+          tools: [{ type: "web_search_20250305", name: "web_search" }],
+          messages: [{ role: "user", content: SCHEMA_FORGE_PROMPT(targetUrl.trim()) }],
+        }),
+      });
+      const anthropicData = await anthropicRes.json().catch(() => ({}));
+      if (!anthropicRes.ok) {
+        console.error("Anthropic schema-forge error", anthropicData);
+        return new Response(JSON.stringify({ error: "Schema generation failed" }), {
+          status: 502,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+      const schema = (anthropicData.content || [])
+        .filter((b) => b.type === "text")
+        .map((b) => b.text)
+        .join("\n")
+        .trim();
+      return new Response(JSON.stringify({ schema }), {
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
     }
 
     // POST /api/newsletter — newsletter-only signup (homepage / results forms)
