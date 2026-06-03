@@ -1253,8 +1253,8 @@ export default {
       );
     }
 
-    // POST /api/schema-forge — proxy to Anthropic to generate JSON-LD schema for a URL
-    if (reqUrl.pathname === "/api/schema-forge") {
+    // POST /api/audit/schema-forge — proxy to Anthropic to generate JSON-LD schema for a URL
+    if (reqUrl.pathname === "/api/audit/schema-forge") {
       const { url: targetUrl } = body || {};
       if (!targetUrl || typeof targetUrl !== "string" || !targetUrl.trim()) {
         return new Response(JSON.stringify({ error: "URL is required" }), {

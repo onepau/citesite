@@ -18,7 +18,7 @@ export function SchemaForge() {
     setCopied(false);
 
     try {
-      const response = await fetch(`${API_BASE}/api/schema-forge`, {
+      const response = await fetch(`${API_BASE}/api/audit/schema-forge`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: url.trim() }),
