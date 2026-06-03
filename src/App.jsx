@@ -4,6 +4,7 @@ import { marked } from "marked";
 import { AuditPDFDocument } from "./components/AuditPDFDocument";
 import { PDFEditModal } from "./components/PDFEditModal";
 import { ContactModal } from "./components/ContactModal";
+import { SchemaForge } from "./components/SchemaForge";
 import { getLocalPrice, formatPrice } from "./utils/pricing";
 import {
   Search,
@@ -971,15 +972,47 @@ const DimensionCard = ({ dim, isPaid, onUnlock, priceLabel }) => {
   );
 };
 
-const PaymentModal = ({ onClose, url, localPrice }) => {
+const PaymentModal = ({ onClose, url, localPrice, initialCoupon = "" }) => {
   const [email, setEmail] = useState("");
   const [editableUrl, setEditableUrl] = useState(url || "");
   const [step, setStep] = useState("details");
   const [processing, setProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState(null);
+  const [couponCode, setCouponCode] = useState(initialCoupon);
+  const [couponStatus, setCouponStatus] = useState(null); // null | "validating" | "valid" | "invalid"
+  const [couponDetails, setCouponDetails] = useState(null); // { promotionCodeId, discountDescription }
   const isUrlPrefilled = !!url;
   const priceLabel = localPrice ? formatPrice(localPrice) : "CHF 49.99";
   const isLocalised = localPrice && localPrice.currency !== "CHF";
+
+  const validateCoupon = async (code) => {
+    const trimmed = (code || couponCode).trim().toUpperCase();
+    if (!trimmed) return;
+    setCouponStatus("validating");
+    try {
+      const res = await fetch(`${API_BASE}/api/coupon/validate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: trimmed }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.valid) {
+        setCouponStatus("valid");
+        setCouponDetails({ promotionCodeId: data.promotionCodeId, discountDescription: data.discountDescription });
+      } else {
+        setCouponStatus("invalid");
+        setCouponDetails(null);
+      }
+    } catch {
+      setCouponStatus("invalid");
+      setCouponDetails(null);
+    }
+  };
+
+  // Auto-validate coupon pre-filled from URL param
+  useEffect(() => {
+    if (initialCoupon) validateCoupon(initialCoupon);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePay = async () => {
     if (!email) return setPaymentError("Please enter an email");
@@ -1014,7 +1047,11 @@ const PaymentModal = ({ onClose, url, localPrice }) => {
       const res = await fetch(`${API_BASE}/api/checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, url: normalisedUrl }),
+        body: JSON.stringify({
+          email,
+          url: normalisedUrl,
+          ...(couponDetails?.promotionCodeId && { promotionCodeId: couponDetails.promotionCodeId }),
+        }),
       });
       const data = await res
         .json()
@@ -1113,13 +1150,52 @@ const PaymentModal = ({ onClose, url, localPrice }) => {
                 placeholder="you@example.com"
               />
             </div>
+            <div className="mb-4">
+              <label className="text-sm text-slate-400 block mb-1">
+                Promo code <span className="text-slate-600">(optional)</span>
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={couponCode}
+                  onChange={(e) => {
+                    setCouponCode(e.target.value.toUpperCase());
+                    setCouponStatus(null);
+                    setCouponDetails(null);
+                  }}
+                  onKeyDown={(e) => e.key === "Enter" && validateCoupon()}
+                  className="flex-1 bg-slate-900 border border-slate-600 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-cyan-500 font-mono tracking-wider"
+                  placeholder="ENTER CODE"
+                />
+                <button
+                  type="button"
+                  onClick={() => validateCoupon()}
+                  disabled={!couponCode.trim() || couponStatus === "validating"}
+                  className="px-4 py-2.5 rounded-lg text-sm font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-50 transition-colors"
+                >
+                  {couponStatus === "validating" ? "…" : "Apply"}
+                </button>
+              </div>
+              {couponStatus === "valid" && couponDetails && (
+                <p className="text-emerald-400 text-xs mt-1.5 flex items-center gap-1">
+                  <CheckCircle size={12} /> {couponDetails.discountDescription} applied
+                </p>
+              )}
+              {couponStatus === "invalid" && (
+                <p className="text-red-400 text-xs mt-1.5">Invalid or expired code</p>
+              )}
+            </div>
             <button
               onClick={handlePay}
               disabled={processing}
               className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white py-3 rounded-lg font-semibold hover:from-cyan-400 hover:to-blue-500 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
             >
               <CreditCard size={18} />{" "}
-              {processing ? "Processing…" : `Pay ${priceLabel}`}
+              {processing
+                ? "Processing…"
+                : couponStatus === "valid" && couponDetails
+                  ? `Pay ${priceLabel} (${couponDetails.discountDescription})`
+                  : `Pay ${priceLabel}`}
             </button>
             {paymentError && (
               <p className="text-red-400 text-xs mt-2">{paymentError}</p>
@@ -1261,6 +1337,7 @@ const PAGES = {
   POST: "post",
   BLOG: "blog",
   PRICING: "pricing",
+  SCHEMA_FORGE: "schema-forge",
 };
 
 export default function App() {
@@ -1294,6 +1371,14 @@ export default function App() {
   const [postContent, setPostContent] = useState("");
   const [localPrice, setLocalPrice] = useState(null);
   const [orderId, setOrderId] = useState(null);
+  const [schemaForgeUnlocked, setSchemaForgeUnlocked] = useState(
+    () => typeof window !== "undefined" && sessionStorage.getItem("schemaForgeUnlocked") === "1"
+  );
+  const [sfEmail, setSfEmail] = useState("");
+  const [sfEmailSent, setSfEmailSent] = useState(false);
+  const urlCoupon = typeof window !== "undefined"
+    ? (new URLSearchParams(window.location.search).get("coupon") ?? "")
+    : "";
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [pendingReviewUrl, setPendingReviewUrl] = useState(null);
   const [alreadyAudited, setAlreadyAudited] = useState(null);
@@ -1741,6 +1826,12 @@ export default function App() {
               Pricing
             </button>
             <button
+              onClick={() => setPage(PAGES.SCHEMA_FORGE)}
+              className="text-slate-400 hover:text-white transition-colors"
+            >
+              Schema Forge
+            </button>
+            <button
               onClick={() => setShowPayment(true)}
               className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:from-cyan-400 hover:to-blue-500"
             >
@@ -1783,6 +1874,15 @@ export default function App() {
               className="block w-full text-left text-slate-300 py-2"
             >
               Pricing
+            </button>
+            <button
+              onClick={() => {
+                setPage(PAGES.SCHEMA_FORGE);
+                setMenuOpen(false);
+              }}
+              className="block w-full text-left text-slate-300 py-2"
+            >
+              Schema Forge
             </button>
           </div>
         )}
@@ -2334,6 +2434,36 @@ export default function App() {
               />
             ))}
           </div>
+
+          {/* SCHEMA FORGE CTA — shown when structured-data score is weak */}
+          {!isAdmin && results.tier === "free" && (() => {
+            const sdDim = results.dimensions?.find((d) => d.id === "structured-data");
+            const jsonldCheck = sdDim?.checks?.find((c) => c.id === "jsonld-present");
+            const isWeak = sdDim && (sdDim.score < 50 || jsonldCheck?.score === 0);
+            if (!isWeak) return null;
+            return (
+              <div className="rounded-xl border border-violet-500/30 bg-violet-500/5 p-5 mb-6 flex items-start gap-4">
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0 text-white font-bold text-sm">
+                  ⟨/⟩
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white font-semibold text-sm mb-1">
+                    Your structured data needs work
+                  </p>
+                  <p className="text-slate-400 text-xs leading-relaxed">
+                    Missing or weak JSON-LD means AI engines can&apos;t properly understand your content.
+                    Generate ready-to-paste schema markup for free — just subscribe to our newsletter.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setPage(PAGES.SCHEMA_FORGE)}
+                  className="flex-shrink-0 bg-gradient-to-r from-violet-500 to-purple-600 text-white px-4 py-2 rounded-lg text-xs font-semibold hover:from-violet-400 hover:to-purple-500 transition-all whitespace-nowrap"
+                >
+                  Get Free Generator →
+                </button>
+              </div>
+            );
+          })()}
 
           {/* QUICK WINS */}
           <div className="bg-slate-800/80 rounded-xl border border-slate-700/50 p-6 mb-6">
@@ -2908,6 +3038,123 @@ export default function App() {
         </div>
       )}
 
+      {/* SCHEMA FORGE */}
+      {page === PAGES.SCHEMA_FORGE && (
+        <div className="max-w-3xl mx-auto px-4 py-12">
+          {!schemaForgeUnlocked ? (
+            <>
+              <div className="text-center mb-10">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-500/10 text-violet-400 text-xs font-medium mb-4 border border-violet-500/20">
+                  Free Tool
+                </div>
+                <h1 className="text-3xl font-bold text-white mb-3">
+                  JSON-LD Schema Generator
+                </h1>
+                <p className="text-slate-400 text-sm leading-relaxed max-w-lg mx-auto">
+                  Paste any URL. Claude fetches the page, detects Article, FAQ, HowTo, Product &amp; Event schemas,
+                  and returns a ready-to-paste{" "}
+                  <code className="text-violet-400 text-xs">&lt;script type=&quot;application/ld+json&quot;&gt;</code> block.
+                </p>
+              </div>
+
+              {/* Feature preview tiles */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-10">
+                {["Article", "FAQPage", "HowTo", "Product"].map((s) => (
+                  <div key={s} className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-3 text-center">
+                    <div className="text-violet-400 text-lg mb-1">⟨/⟩</div>
+                    <div className="text-slate-300 text-xs font-medium">{s}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Newsletter gate */}
+              <div className="bg-slate-800/80 border border-slate-700/50 rounded-2xl p-8">
+                <h2 className="text-white font-bold text-lg mb-2 text-center">
+                  Subscribe to unlock the tool
+                </h2>
+                <p className="text-slate-400 text-sm text-center mb-6">
+                  Join the newsletter for GEO tips, structured data guides, and AI search updates. Unsubscribe anytime.
+                </p>
+                {sfEmailSent ? (
+                  <div className="text-center">
+                    <p className="text-emerald-400 font-semibold flex items-center justify-center gap-2 mb-2">
+                      <CheckCircle size={18} /> You&apos;re subscribed!
+                    </p>
+                    <p className="text-slate-400 text-sm">The generator is now unlocked below.</p>
+                  </div>
+                ) : (
+                  <div className="flex gap-2 max-w-sm mx-auto">
+                    <input
+                      type="email"
+                      value={sfEmail}
+                      onChange={(e) => setSfEmail(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && sfEmail.trim()) {
+                          subscribeNewsletter(sfEmail).catch(() => {});
+                          setSfEmailSent(true);
+                          setSchemaForgeUnlocked(true);
+                          sessionStorage.setItem("schemaForgeUnlocked", "1");
+                        }
+                      }}
+                      className="flex-1 bg-slate-900 border border-slate-600 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-violet-500 placeholder-slate-500"
+                      placeholder="your@email.com"
+                    />
+                    <button
+                      onClick={() => {
+                        if (!sfEmail.trim()) return;
+                        subscribeNewsletter(sfEmail).catch(() => {});
+                        setSfEmailSent(true);
+                        setSchemaForgeUnlocked(true);
+                        sessionStorage.setItem("schemaForgeUnlocked", "1");
+                      }}
+                      className="bg-gradient-to-r from-violet-500 to-purple-600 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:from-violet-400 hover:to-purple-500 transition-all"
+                    >
+                      Subscribe &amp; Unlock
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="mb-8">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm">
+                    ⟨/⟩
+                  </div>
+                  <div>
+                    <h1 className="text-xl font-bold text-white">Schema Forge</h1>
+                    <p className="text-slate-500 text-xs">JSON-LD Generator · AI-Powered</p>
+                  </div>
+                  <span className="ml-auto px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-bold uppercase tracking-widest border border-emerald-500/20">
+                    Unlocked
+                  </span>
+                </div>
+                <p className="text-slate-400 text-sm">
+                  Paste any URL — Claude fetches the page and returns a ready-to-paste structured data block.
+                </p>
+              </div>
+              <SchemaForge />
+              <div className="mt-10 p-5 bg-slate-800/60 border border-slate-700/50 rounded-xl flex items-start gap-4">
+                <Sparkles size={20} className="text-cyan-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-white text-sm font-semibold mb-1">Want the full picture?</p>
+                  <p className="text-slate-400 text-xs leading-relaxed mb-3">
+                    Schema markup is one of six dimensions. Run a free audit to see how your entire site scores for AI discoverability.
+                  </p>
+                  <button
+                    onClick={() => setPage(PAGES.HOME)}
+                    className="text-cyan-400 text-xs font-semibold hover:text-cyan-300"
+                  >
+                    Run free audit →
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {/* FOOTER */}
       <footer className="border-t border-slate-800 mt-12">
         <div className="max-w-6xl mx-auto px-4 py-8 flex flex-col md:flex-row items-center justify-between gap-4">
@@ -2935,6 +3182,12 @@ export default function App() {
               Pricing
             </button>
             <button
+              onClick={() => setPage(PAGES.SCHEMA_FORGE)}
+              className="hover:text-white transition-colors"
+            >
+              Schema Forge
+            </button>
+            <button
               onClick={() => setShowContact(true)}
               className="hover:text-white transition-colors"
             >
@@ -2949,6 +3202,7 @@ export default function App() {
           onClose={() => setShowPayment(false)}
           url={auditUrl || url}
           localPrice={localPrice}
+          initialCoupon={urlCoupon}
         />
       )}
 
