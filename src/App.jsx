@@ -1,4 +1,8 @@
-import { useState, useEffect, Suspense, lazy } from "react";
+import { useState, useEffect } from "react";
+import { marked } from "marked";
+
+import { AuditPDFDocument } from "./components/AuditPDFDocument";
+import { PDFEditModal } from "./components/PDFEditModal";
 import { ContactModal } from "./components/ContactModal";
 import { getLocalPrice, formatPrice } from "./utils/pricing";
 import {
@@ -29,9 +33,14 @@ import {
   Clock,
   CheckCircle2,
 } from "lucide-react";
-
-const PDFEditModal = lazy(() => import("./components/PDFEditModal"));
-const AuditRadarChart = lazy(() => import("./components/AuditRadarChart"));
+import {
+  RadarChart,
+  Radar,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  ResponsiveContainer,
+} from "recharts";
 
 const mdFiles = import.meta.glob("../content/blog/*.md", {
   query: "?raw",
@@ -1440,6 +1449,109 @@ export default function App() {
     }
   }, [isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Dynamic JSON-LD: inject Article schema on blog posts, Blog schema on listing, remove elsewhere
+  useEffect(() => {
+    const SITE_URL = "https://citesite.net";
+
+    const getOrCreateTag = () => {
+      let el = document.querySelector('script[data-schema="dynamic"]');
+      if (!el) {
+        el = document.createElement("script");
+        el.type = "application/ld+json";
+        el.setAttribute("data-schema", "dynamic");
+        document.head.appendChild(el);
+      }
+      return el;
+    };
+
+    const removeTag = () => {
+      const el = document.querySelector('script[data-schema="dynamic"]');
+      if (el) el.remove();
+    };
+
+    if (page === PAGES.POST && selectedPost) {
+      const postUrl = `${SITE_URL}/?post=${selectedPost.slug}`;
+      const schema = {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Article",
+            "@id": `${postUrl}#article`,
+            headline: selectedPost.title,
+            description: selectedPost.excerpt,
+            datePublished: selectedPost.date,
+            articleSection: selectedPost.category,
+            keywords: selectedPost.category,
+            author: {
+              "@type": "Organization",
+              "@id": `${SITE_URL}/#organization`,
+              name: "CiteSite",
+              url: SITE_URL,
+            },
+            publisher: {
+              "@type": "Organization",
+              "@id": `${SITE_URL}/#organization`,
+              name: "CiteSite",
+              logo: {
+                "@type": "ImageObject",
+                url: `${SITE_URL}/favicon.svg`,
+              },
+            },
+            mainEntityOfPage: {
+              "@type": "WebPage",
+              "@id": postUrl,
+            },
+            url: postUrl,
+            isPartOf: { "@id": `${SITE_URL}/#website` },
+          },
+          {
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              {
+                "@type": "ListItem",
+                position: 1,
+                name: "Home",
+                item: SITE_URL,
+              },
+              {
+                "@type": "ListItem",
+                position: 2,
+                name: "Blog",
+                item: `${SITE_URL}/`,
+              },
+              {
+                "@type": "ListItem",
+                position: 3,
+                name: selectedPost.title,
+                item: postUrl,
+              },
+            ],
+          },
+        ],
+      };
+      getOrCreateTag().textContent = JSON.stringify(schema);
+    } else if (page === PAGES.BLOG) {
+      const schema = {
+        "@context": "https://schema.org",
+        "@type": "Blog",
+        "@id": `${SITE_URL}/#blog`,
+        name: "CiteSite Blog",
+        description:
+          "Guides, case studies, and updates on SEO, GEO, and AI-optimised content.",
+        url: `${SITE_URL}/`,
+        publisher: {
+          "@type": "Organization",
+          "@id": `${SITE_URL}/#organization`,
+          name: "CiteSite",
+        },
+        isPartOf: { "@id": `${SITE_URL}/#website` },
+      };
+      getOrCreateTag().textContent = JSON.stringify(schema);
+    } else {
+      removeTag();
+    }
+  }, [page, selectedPost]);
+
   const handleApprove = async (editedData) => {
     if (!reviewingAudit) return;
     setApproving(true);
@@ -1475,13 +1587,12 @@ export default function App() {
   const priceLabel = localPrice ? formatPrice(localPrice) : "CHF 49.99";
   const isLocalisedPrice = localPrice && localPrice.currency !== "CHF";
 
-  const loadPost = async (post) => {
+  const loadPost = (post) => {
     setSelectedPost(post);
     setPage(PAGES.POST);
     window.history.pushState({}, "", `?post=${post.slug}`);
     const raw = mdFiles[`../content/blog/${post.slug}.md`];
     if (raw) {
-      const { marked } = await import("marked");
       const body = raw.replace(/^---[\s\S]*?---\n/, "");
       setPostContent(marked.parse(body));
     } else {
@@ -1492,10 +1603,6 @@ export default function App() {
   const handleGeneratePDF = async (editedData) => {
     setPdfGenerating(true);
     try {
-      const [{ pdf }, { AuditPDFDocument }] = await Promise.all([
-        import("@react-pdf/renderer"),
-        import("./components/AuditPDFDocument"),
-      ]);
       const blob = await pdf(
         <AuditPDFDocument auditData={editedData} url={auditUrl} />,
       ).toBlob();
@@ -1698,7 +1805,7 @@ export default function App() {
             <p className="text-slate-400 text-lg mb-10 max-w-2xl mx-auto leading-relaxed">
               Get an instant audit across six weighted dimensions — from
               crawlability to citability. Discover what's helping and hurting
-              your visibility in ChatGPT, Perplexity, Gemini, and beyond.
+              your visibility in ChatGPT, Claude, Perplexity, Gemini and beyond.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 max-w-xl mx-auto">
               <input
@@ -2151,9 +2258,27 @@ export default function App() {
               </div>
             </div>
             <div className="bg-slate-800/80 rounded-xl border border-slate-700/50 p-4">
-              <Suspense fallback={<div className="h-[200px]" />}>
-                <AuditRadarChart data={radarData} />
-              </Suspense>
+              <ResponsiveContainer width="100%" height={200}>
+                <RadarChart data={radarData}>
+                  <PolarGrid stroke="#334155" />
+                  <PolarAngleAxis
+                    dataKey="dim"
+                    tick={{ fill: "#94a3b8", fontSize: 11 }}
+                  />
+                  <PolarRadiusAxis
+                    domain={[0, 100]}
+                    tick={false}
+                    axisLine={false}
+                  />
+                  <Radar
+                    dataKey="score"
+                    stroke="#06b6d4"
+                    fill="#06b6d4"
+                    fillOpacity={0.2}
+                    strokeWidth={2}
+                  />
+                </RadarChart>
+              </ResponsiveContainer>
             </div>
           </div>
 
@@ -2831,32 +2956,28 @@ export default function App() {
       {IS_LOCAL && <DevAdminPanel />}
 
       {showPDFModal && results && (
-        <Suspense fallback={null}>
-          <PDFEditModal
-            auditData={results}
-            url={auditUrl}
-            onClose={() => setShowPDFModal(false)}
-            onGenerate={handleGeneratePDF}
-            isGenerating={pdfGenerating}
-          />
-        </Suspense>
+        <PDFEditModal
+          auditData={results}
+          url={auditUrl}
+          onClose={() => setShowPDFModal(false)}
+          onGenerate={handleGeneratePDF}
+          isGenerating={pdfGenerating}
+        />
       )}
 
       {showContact && <ContactModal onClose={() => setShowContact(false)} />}
 
       {/* Admin review modal — opened from the pending queue */}
       {reviewingAudit && (
-        <Suspense fallback={null}>
-          <PDFEditModal
-            auditData={reviewingAudit.results}
-            url={reviewingAudit.url}
-            onClose={() => setReviewingAudit(null)}
-            onGenerate={handleGeneratePDF}
-            isGenerating={pdfGenerating}
-            onApprove={handleApprove}
-            isApproving={approving}
-          />
-        </Suspense>
+        <PDFEditModal
+          auditData={reviewingAudit.results}
+          url={reviewingAudit.url}
+          onClose={() => setReviewingAudit(null)}
+          onGenerate={handleGeneratePDF}
+          isGenerating={pdfGenerating}
+          onApprove={handleApprove}
+          isApproving={approving}
+        />
       )}
     </div>
   );
