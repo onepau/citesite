@@ -1,6 +1,6 @@
 # CiteSite
 
-> CiteSite is an AI-powered website audit tool that scores how well a site is optimised for visibility in AI-powered search engines and large language models — including ChatGPT, Perplexity, Gemini, and Claude.
+> CiteSite is an AI-powered website audit tool that scores how well a site is optimised for search engines and visibility in AI-powered search engines and large language models — including ChatGPT, Perplexity, Gemini and Claude.
 
 ## What CiteSite does
 
@@ -18,7 +18,3 @@ CiteSite audits websites across six weighted dimensions: crawlability, structure
 - [Free Audit](https://citesite.net/): Run an instant free audit of any website.
 - [Pricing](https://citesite.net/?page=pricing): Full audit report for CHF 49.99.
 - [Blog](https://citesite.net/?page=blog): Articles on GEO, structured data, and AI visibility.
-
-## Full content
-
-- [llms-full.txt](https://citesite.net/llms-full.txt): Complete content of all pages and blog posts in a single file.

@@ -1,24 +1,85 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="See how AI search engines see your website. Free SEO, GEO and AIO audit across six weighted dimensions." />
+    <meta
+      name="description"
+      content="See how AI search engines see your website. Free SEO, GEO and AIO audit across six weighted dimensions."
+    />
     <title>CiteSite — SEO & GEO Audit for the AI Search era</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script type="application/ld+json" data-schema="static">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://citesite.net/#website",
+            "url": "https://citesite.net/",
+            "name": "CiteSite",
+            "description": "See how AI search engines see your website. Free SEO, GEO and AIO audit across six weighted dimensions.",
+            "publisher": { "@id": "https://citesite.net/#organization" }
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://citesite.net/#organization",
+            "name": "CiteSite",
+            "url": "https://citesite.net/",
+            "description": "CiteSite provides SEO, GEO, and AIO audits to help websites become visible and citable by AI-powered search engines.",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://citesite.net/favicon.svg"
+            },
+            "foundingDate": "2026",
+            "knowsAbout": [
+              "Generative Engine Optimisation",
+              "SEO",
+              "AI search visibility",
+              "Structured data",
+              "JSON-LD schema",
+              "E-E-A-T"
+            ]
+          },
+          {
+            "@type": "WebApplication",
+            "@id": "https://citesite.net/#webapp",
+            "name": "CiteSite SEO & GEO Audit Tool",
+            "url": "https://citesite.net/",
+            "applicationCategory": "BusinessApplication",
+            "operatingSystem": "Any",
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "CHF",
+              "description": "Free SEO and GEO audit across six weighted dimensions"
+            },
+            "provider": { "@id": "https://citesite.net/#organization" }
+          }
+        ]
+      }
+    </script>
   </head>
   <!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-QN7TPT5NVK"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
+  <script
+    async
+    src="https://www.googletagmanager.com/gtag/js?id=G-QN7TPT5NVK"
+  ></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() {
+      dataLayer.push(arguments);
+    }
+    gtag("js", new Date());
 
-  gtag('config', 'G-QN7TPT5NVK');
-</script>
+    gtag("config", "G-QN7TPT5NVK");
+  </script>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
