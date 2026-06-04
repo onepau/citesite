@@ -1457,6 +1457,16 @@ export default function App() {
       if (checkoutSuccess && storedOrderId) {
         setPaymentSuccess(true);
         setOrderId(storedOrderId);
+        window.dataLayer.push({
+          event: 'purchase',
+          ecommerce: {
+            transaction_id: orderId,  // from URL params
+            value: 49.99,
+            currency: 'CHF',
+            items: [{ item_id: 'citesite_full_report', item_name: 'CiteSite Full Report', price: 49.99, quantity: 1 }]
+          }
+        });
+
         // If URL was entered directly in payment modal (direct paid audit), set it here
         if (storedAuditUrl && !auditUrl) {
           setAuditUrl(storedAuditUrl);
@@ -1472,15 +1482,6 @@ export default function App() {
       }
     }
   }, [auditUrl]);
-  window.dataLayer.push({
-    event: 'purchase',
-    ecommerce: {
-      transaction_id: orderId,  // from URL params
-      value: 49.99,
-      currency: 'CHF',
-      items: [{ item_id: 'citesite_full_report', item_name: 'CiteSite Full Report', price: 49.99, quantity: 1 }]
-    }
-  });
   // Auto-load full audit when payment succeeds
   useEffect(() => {
     if (paymentSuccess && orderId && auditUrl) {
