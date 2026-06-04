@@ -654,11 +654,22 @@ const callAuditAPI = async (url, isAdmin = false, orderId = null) => {
     err.code = data.errorCode || null;
     throw err;
   }
-
+  window.dataLayer = window.dataLayer || [];
+  window.dataLayer.push({
+    event: 'audit_started',
+    audit_url: url,
+    audit_tier: isAdmin ? 'admin' : isPaid ? 'paid' : 'free'
+  });
   if (data.alreadyAudited) return data;
 
   // Merge API dimension data with local config (for icon, shortName, static recommendations)
   // while preserving all top-level fields (criticalIssues, improvements, signatureRecommendation, inspection)
+  window.dataLayer.push({
+    event: 'report_generated',
+    audit_url: url,
+    audit_tier: isPaid ? 'paid' : 'free',
+    overall_score: data.overallScore ?? null
+  });
   return {
     ...data,
     dimensions: data.dimensions.map((dim) => {
@@ -984,7 +995,17 @@ const PaymentModal = ({ onClose, url, localPrice, initialCoupon = "" }) => {
   const isUrlPrefilled = !!url;
   const priceLabel = localPrice ? formatPrice(localPrice) : "CHF 49.99";
   const isLocalised = localPrice && localPrice.currency !== "CHF";
-
+  useEffect(() => {
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push({
+      event: 'begin_checkout',
+      ecommerce: {
+        currency: localPrice?.currency || 'CHF',
+        value: localPrice?.amount || 49.99,
+        items: [{ item_id: 'citesite_full_report', item_name: 'CiteSite Full Report', price: localPrice?.amount || 49.99, quantity: 1 }]
+      }
+    });
+  }, []);
   const validateCoupon = async (code) => {
     const trimmed = (code || couponCode).trim().toUpperCase();
     if (!trimmed) return;
@@ -1001,6 +1022,11 @@ const PaymentModal = ({ onClose, url, localPrice, initialCoupon = "" }) => {
         setCouponDetails({
           promotionCodeId: data.promotionCodeId,
           discountDescription: data.discountDescription,
+        });
+        window.dataLayer.push({
+          event: 'coupon_applied',
+          coupon_code: trimmed,
+          discount: data.discountDescription || ''
         });
       } else {
         setCouponStatus("invalid");
@@ -1057,6 +1083,13 @@ const PaymentModal = ({ onClose, url, localPrice, initialCoupon = "" }) => {
             promotionCodeId: couponDetails.promotionCodeId,
           }),
         }),
+      });
+      window.dataLayer.push({
+        event: 'checkout_redirect',
+        ecommerce: {
+          currency: localPrice?.currency || 'CHF',
+          value: localPrice?.amount || 49.99
+        }
       });
       const data = await res
         .json()
@@ -1439,7 +1472,15 @@ export default function App() {
       }
     }
   }, [auditUrl]);
-
+  window.dataLayer.push({
+    event: 'purchase',
+    ecommerce: {
+      transaction_id: orderId,  // from URL params
+      value: 49.99,
+      currency: 'CHF',
+      items: [{ item_id: 'citesite_full_report', item_name: 'CiteSite Full Report', price: 49.99, quantity: 1 }]
+    }
+  });
   // Auto-load full audit when payment succeeds
   useEffect(() => {
     if (paymentSuccess && orderId && auditUrl) {
@@ -1776,20 +1817,20 @@ export default function App() {
   const overallColor = getScoreColor(overall);
   const radarData = results
     ? results.dimensions.map((d) => ({
-        dim: d.shortName,
-        score: d.score,
-        fullMark: 100,
-      }))
+      dim: d.shortName,
+      score: d.score,
+      fullMark: 100,
+    }))
     : [];
 
   const topImprovements = results?.improvements?.length
     ? results.improvements.slice(0, 3)
     : results
       ? [...results.dimensions]
-          .sort(
-            (a, b) => (100 - b.score) * b.weight - (100 - a.score) * a.weight,
-          )
-          .slice(0, 3)
+        .sort(
+          (a, b) => (100 - b.score) * b.weight - (100 - a.score) * a.weight,
+        )
+        .slice(0, 3)
       : [];
 
   return (
@@ -3106,7 +3147,7 @@ export default function App() {
                       onChange={(e) => setSfEmail(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && sfEmail.trim()) {
-                          subscribeNewsletter(sfEmail).catch(() => {});
+                          subscribeNewsletter(sfEmail).catch(() => { });
                           setSfEmailSent(true);
                           setSchemaForgeUnlocked(true);
                           sessionStorage.setItem("schemaForgeUnlocked", "1");
@@ -3118,7 +3159,7 @@ export default function App() {
                     <button
                       onClick={() => {
                         if (!sfEmail.trim()) return;
-                        subscribeNewsletter(sfEmail).catch(() => {});
+                        subscribeNewsletter(sfEmail).catch(() => { });
                         setSfEmailSent(true);
                         setSchemaForgeUnlocked(true);
                         sessionStorage.setItem("schemaForgeUnlocked", "1");
