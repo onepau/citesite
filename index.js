@@ -508,114 +508,113 @@ const FAQ_HTML = `<!DOCTYPE html>
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    const pathname = url.pathname.replace(/\/$/, '') || '/';
+    const pathname = url.pathname.replace(/\/$/, "") || "/";
 
-    if (pathname === '/') {
+    if (pathname === "/") {
       return new Response(HOMEPAGE_HTML, {
         headers: {
-          'Content-Type': 'text/html; charset=utf-8',
-          'Cache-Control': 'public, max-age=3600'
-        }
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "public, max-age=3600",
+        },
       });
     }
 
-    if (pathname === '/about') {
+    if (pathname === "/about") {
       return new Response(ABOUT_HTML, {
         headers: {
-          'Content-Type': 'text/html; charset=utf-8',
-          'Cache-Control': 'public, max-age=3600'
-        }
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "public, max-age=3600",
+        },
       });
     }
 
-    if (pathname === '/faq') {
+    if (pathname === "/faq") {
       return new Response(FAQ_HTML, {
         headers: {
-          'Content-Type': 'text/html; charset=utf-8',
-          'Cache-Control': 'public, max-age=3600'
-        }
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "public, max-age=3600",
+        },
       });
     }
 
     // Static assets (have file extensions) — pass through directly
-    return env.ASSETS.fetch(request);
-  }
+    if (/\.\w+$/.test(pathname)) return env.ASSETS.fetch(request);
 
     // Fetch the SPA shell for all route-level requests
     const shell = await env.ASSETS.fetch(
-    new Request(new URL("/index.html", request.url), request),
-  );
+      new Request(new URL("/index.html", request.url), request),
+    );
 
-  // Admin panel — no SEO injection needed
-  if(url.pathname === "/admin-audit") return shell;
+    // Admin panel — no SEO injection needed
+    if (url.pathname === "/admin-audit") return shell;
 
-  const postSlug = url.searchParams.get("post");
+    const postSlug = url.searchParams.get("post");
 
-  // Blog post: /?post=<slug>
-  if(postSlug) {
-    const posts = await fetchManifest(env, request);
-    const post = posts.find((p) => p.slug === postSlug);
-    if (!post) return shell;
+    // Blog post: /?post=<slug>
+    if (postSlug) {
+      const posts = await fetchManifest(env, request);
+      const post = posts.find((p) => p.slug === postSlug);
+      if (!post) return shell;
 
-    const postUrl = `${SITE}/?post=${post.slug}`;
-    const title = `${post.title} — CiteSite`;
+      const postUrl = `${SITE}/?post=${post.slug}`;
+      const title = `${post.title} — CiteSite`;
+
+      return new HTMLRewriter()
+        .on("title", {
+          element(el) {
+            el.setInnerContent(title);
+          },
+        })
+        .on('meta[name="description"]', {
+          element(el) {
+            el.setAttribute("content", post.excerpt);
+          },
+        })
+        .on("head", {
+          element(el) {
+            el.append(
+              `<script type="application/ld+json" data-schema="dynamic">${JSON.stringify(buildArticleSchema(post))}</script>` +
+                `<meta property="og:type" content="article" />` +
+                `<meta property="og:title" content="${ea(title)}" />` +
+                `<meta property="og:description" content="${ea(post.excerpt)}" />` +
+                `<meta property="og:url" content="${ea(postUrl)}" />` +
+                `<meta name="twitter:card" content="summary_large_image" />` +
+                `<meta name="twitter:title" content="${ea(title)}" />` +
+                `<meta name="twitter:description" content="${ea(post.excerpt)}" />`,
+              { html: true },
+            );
+          },
+        })
+        .on("#root", {
+          element(el) {
+            el.setInnerContent(`<article>${post.html}</article>`, {
+              html: true,
+            });
+          },
+        })
+        .transform(shell);
+    }
+
+    // Homepage — static schema already in index.html; add OG/Twitter tags
+    const homeTitle = "CiteSite — SEO & GEO Audit for the AI Search era";
+    const homeDesc =
+      "See how AI search engines see your website. Free SEO, GEO and AIO audit across six weighted dimensions.";
 
     return new HTMLRewriter()
-      .on("title", {
-        element(el) {
-          el.setInnerContent(title);
-        },
-      })
-      .on('meta[name="description"]', {
-        element(el) {
-          el.setAttribute("content", post.excerpt);
-        },
-      })
       .on("head", {
         element(el) {
           el.append(
-            `<script type="application/ld+json" data-schema="dynamic">${JSON.stringify(buildArticleSchema(post))}</script>` +
-            `<meta property="og:type" content="article" />` +
-            `<meta property="og:title" content="${ea(title)}" />` +
-            `<meta property="og:description" content="${ea(post.excerpt)}" />` +
-            `<meta property="og:url" content="${ea(postUrl)}" />` +
-            `<meta name="twitter:card" content="summary_large_image" />` +
-            `<meta name="twitter:title" content="${ea(title)}" />` +
-            `<meta name="twitter:description" content="${ea(post.excerpt)}" />`,
+            `<meta property="og:type" content="website" />` +
+              `<meta property="og:title" content="${ea(homeTitle)}" />` +
+              `<meta property="og:description" content="${ea(homeDesc)}" />` +
+              `<meta property="og:url" content="${ea(`${SITE}/`)}" />` +
+              `<meta name="twitter:card" content="summary_large_image" />` +
+              `<meta name="twitter:title" content="${ea(homeTitle)}" />` +
+              `<meta name="twitter:description" content="${ea(homeDesc)}" />`,
             { html: true },
           );
         },
       })
-      .on("#root", {
-        element(el) {
-          el.setInnerContent(`<article>${post.html}</article>`, {
-            html: true,
-          });
-        },
-      })
       .transform(shell);
-  }
-
-    // Homepage — static schema already in index.html; add OG/Twitter tags
-    const homeTitle = "CiteSite — SEO & GEO Audit for the AI Search era";
-  const homeDesc =
-    "See how AI search engines see your website. Free SEO, GEO and AIO audit across six weighted dimensions.";
-
-  return new HTMLRewriter()
-    .on("head", {
-      element(el) {
-        el.append(
-          `<meta property="og:type" content="website" />` +
-          `<meta property="og:title" content="${ea(homeTitle)}" />` +
-          `<meta property="og:description" content="${ea(homeDesc)}" />` +
-          `<meta property="og:url" content="${ea(`${SITE}/`)}" />` +
-          `<meta name="twitter:card" content="summary_large_image" />` +
-          `<meta name="twitter:title" content="${ea(homeTitle)}" />` +
-          `<meta name="twitter:description" content="${ea(homeDesc)}" />`,
-          { html: true },
-        );
-      },
-    })
-    .transform(shell);
-},
+  },
 };
