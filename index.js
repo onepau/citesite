@@ -540,13 +540,13 @@ export default {
     // Static assets (have file extensions) — pass through directly
     if (/\.\w+$/.test(pathname)) return env.ASSETS.fetch(request);
 
+    // Admin panel — SPA shell via assets fallback, no SEO injection needed
+    if (pathname === "/admin-audit") return env.ASSETS.fetch(request);
+
     // Fetch the SPA shell for all route-level requests
     const shell = await env.ASSETS.fetch(
       new Request(new URL("/index.html", request.url), request),
     );
-
-    // Admin panel — no SEO injection needed
-    if (url.pathname === "/admin-audit") return shell;
 
     const postSlug = url.searchParams.get("post");
 
