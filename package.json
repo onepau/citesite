@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && cp dist/index.html dist/404.html",
+    "generate-manifest": "node scripts/generate-manifest.js",
+    "build": "node scripts/generate-manifest.js && vite build && cp dist/index.html dist/404.html",
     "lint": "eslint .",
     "preview": "vite preview",
     "deploy:audit-api": "cd workers/audit-api && wrangler deploy && cd ../..",

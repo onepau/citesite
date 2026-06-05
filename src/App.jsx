@@ -656,19 +656,19 @@ const callAuditAPI = async (url, isAdmin = false, orderId = null) => {
   }
   window.dataLayer = window.dataLayer || [];
   window.dataLayer.push({
-    event: 'audit_started',
+    event: "audit_started",
     audit_url: url,
-    audit_tier: isAdmin ? 'admin' : isPaid ? 'paid' : 'free'
+    audit_tier: isAdmin ? "admin" : isPaid ? "paid" : "free",
   });
   if (data.alreadyAudited) return data;
 
   // Merge API dimension data with local config (for icon, shortName, static recommendations)
   // while preserving all top-level fields (criticalIssues, improvements, signatureRecommendation, inspection)
   window.dataLayer.push({
-    event: 'report_generated',
+    event: "report_generated",
     audit_url: url,
-    audit_tier: isPaid ? 'paid' : 'free',
-    overall_score: data.overallScore ?? null
+    audit_tier: isPaid ? "paid" : "free",
+    overall_score: data.overallScore ?? null,
   });
   return {
     ...data,
@@ -998,12 +998,19 @@ const PaymentModal = ({ onClose, url, localPrice, initialCoupon = "" }) => {
   useEffect(() => {
     window.dataLayer = window.dataLayer || [];
     window.dataLayer.push({
-      event: 'begin_checkout',
+      event: "begin_checkout",
       ecommerce: {
-        currency: localPrice?.currency || 'CHF',
+        currency: localPrice?.currency || "CHF",
         value: localPrice?.amount || 49.99,
-        items: [{ item_id: 'citesite_full_report', item_name: 'CiteSite Full Report', price: localPrice?.amount || 49.99, quantity: 1 }]
-      }
+        items: [
+          {
+            item_id: "citesite_full_report",
+            item_name: "CiteSite Full Report",
+            price: localPrice?.amount || 49.99,
+            quantity: 1,
+          },
+        ],
+      },
     });
   }, []);
   const validateCoupon = async (code) => {
@@ -1024,9 +1031,9 @@ const PaymentModal = ({ onClose, url, localPrice, initialCoupon = "" }) => {
           discountDescription: data.discountDescription,
         });
         window.dataLayer.push({
-          event: 'coupon_applied',
+          event: "coupon_applied",
           coupon_code: trimmed,
-          discount: data.discountDescription || ''
+          discount: data.discountDescription || "",
         });
       } else {
         setCouponStatus("invalid");
@@ -1085,11 +1092,11 @@ const PaymentModal = ({ onClose, url, localPrice, initialCoupon = "" }) => {
         }),
       });
       window.dataLayer.push({
-        event: 'checkout_redirect',
+        event: "checkout_redirect",
         ecommerce: {
-          currency: localPrice?.currency || 'CHF',
-          value: localPrice?.amount || 49.99
-        }
+          currency: localPrice?.currency || "CHF",
+          value: localPrice?.amount || 49.99,
+        },
       });
       const data = await res
         .json()
@@ -1457,15 +1464,6 @@ export default function App() {
       if (checkoutSuccess && storedOrderId) {
         setPaymentSuccess(true);
         setOrderId(storedOrderId);
-        window.dataLayer.push({
-          event: 'purchase',
-          ecommerce: {
-            transaction_id: orderId,  // from URL params
-            value: 49.99,
-            currency: 'CHF',
-            items: [{ item_id: 'citesite_full_report', item_name: 'CiteSite Full Report', price: 49.99, quantity: 1 }]
-          }
-        });
 
         // If URL was entered directly in payment modal (direct paid audit), set it here
         if (storedAuditUrl && !auditUrl) {
@@ -1484,25 +1482,49 @@ export default function App() {
   }, [auditUrl]);
   // Auto-load full audit when payment succeeds
   useEffect(() => {
-    if (paymentSuccess && orderId && auditUrl) {
-      const loadFullAudit = async () => {
-        setLoading(true);
-        setAuditError(null);
-        setAuditErrorCode(null);
-        try {
-          const data = await callAuditAPI(auditUrl, false, orderId);
-          setResults(data);
-          setPage(PAGES.RESULTS);
-          setShowPayment(false);
-        } catch (err) {
-          setAuditError(err.message);
-          setAuditErrorCode(err.code || null);
-        } finally {
-          setLoading(false);
-        }
-      };
-      loadFullAudit();
-    }
+    if (!paymentSuccess || !orderId || !auditUrl) return;
+    // Capture values before any async work so re-renders don't affect them
+    const capturedOrderId = orderId;
+    const capturedUrl = auditUrl;
+    // Clear payment state immediately so this effect never re-runs for the
+    // same purchase (guards against React StrictMode double-invoke and
+    // against auditUrl changing while paymentSuccess is still true)
+    setPaymentSuccess(false);
+    setOrderId(null);
+    const loadFullAudit = async () => {
+      setLoading(true);
+      setAuditError(null);
+      setAuditErrorCode(null);
+      try {
+        const data = await callAuditAPI(capturedUrl, false, capturedOrderId);
+        setResults(data);
+        setPage(PAGES.RESULTS);
+        setShowPayment(false);
+        window.dataLayer = window.dataLayer || [];
+        window.dataLayer.push({
+          event: "purchase",
+          ecommerce: {
+            transaction_id: capturedOrderId,
+            value: 49.99,
+            currency: "CHF",
+            items: [
+              {
+                item_id: "citesite_full_report",
+                item_name: "CiteSite Full Report",
+                price: 49.99,
+                quantity: 1,
+              },
+            ],
+          },
+        });
+      } catch (err) {
+        setAuditError(err.message);
+        setAuditErrorCode(err.code || null);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadFullAudit();
   }, [paymentSuccess, orderId, auditUrl]);
 
   // Deep-link to a blog post via ?post=<slug>
@@ -1818,20 +1840,20 @@ export default function App() {
   const overallColor = getScoreColor(overall);
   const radarData = results
     ? results.dimensions.map((d) => ({
-      dim: d.shortName,
-      score: d.score,
-      fullMark: 100,
-    }))
+        dim: d.shortName,
+        score: d.score,
+        fullMark: 100,
+      }))
     : [];
 
   const topImprovements = results?.improvements?.length
     ? results.improvements.slice(0, 3)
     : results
       ? [...results.dimensions]
-        .sort(
-          (a, b) => (100 - b.score) * b.weight - (100 - a.score) * a.weight,
-        )
-        .slice(0, 3)
+          .sort(
+            (a, b) => (100 - b.score) * b.weight - (100 - a.score) * a.weight,
+          )
+          .slice(0, 3)
       : [];
 
   return (
@@ -3148,7 +3170,7 @@ export default function App() {
                       onChange={(e) => setSfEmail(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && sfEmail.trim()) {
-                          subscribeNewsletter(sfEmail).catch(() => { });
+                          subscribeNewsletter(sfEmail).catch(() => {});
                           setSfEmailSent(true);
                           setSchemaForgeUnlocked(true);
                           sessionStorage.setItem("schemaForgeUnlocked", "1");
@@ -3160,7 +3182,7 @@ export default function App() {
                     <button
                       onClick={() => {
                         if (!sfEmail.trim()) return;
-                        subscribeNewsletter(sfEmail).catch(() => { });
+                        subscribeNewsletter(sfEmail).catch(() => {});
                         setSfEmailSent(true);
                         setSchemaForgeUnlocked(true);
                         sessionStorage.setItem("schemaForgeUnlocked", "1");
