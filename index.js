@@ -292,72 +292,107 @@ function injectMeta(shell, meta, bodyHtml) {
     .transform(shell);
 }
 
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://*.googletagmanager.com https://*.google-analytics.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  "img-src 'self' data: blob: https:",
+  "connect-src 'self' https://api.citesite.net https://*.google-analytics.com https://*.googletagmanager.com https://stats.g.doubleclick.net",
+  "worker-src 'self' blob:",
+  "frame-src https://www.googletagmanager.com",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "object-src 'none'",
+].join("; ");
+
+const SECURITY_HEADERS = {
+  "Content-Security-Policy": CSP,
+  "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+};
+
+function withSecurityHeaders(response) {
+  const headers = new Headers(response.headers);
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) headers.set(k, v);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
 export default {
   async fetch(request, env) {
-    const url = new URL(request.url);
-    const pathname = url.pathname.replace(/\/$/, "") || "/";
-
-    // Static assets (have file extensions) — pass through directly
-    if (/\.\w+$/.test(pathname)) return env.ASSETS.fetch(request);
-
-    // Fetch the SPA shell — request "/" so ASSETS serves dist/index.html
-    // directly without the /index.html → / canonical redirect it would emit.
-    const shell = await env.ASSETS.fetch(
-      new Request(new URL("/", request.url), request),
-    );
-
-    const postSlug = url.searchParams.get("post");
-
-    // Blog post: /?post=<slug>
-    if (postSlug) {
-      const posts = await fetchManifest(env, request);
-      const post = posts.find((p) => p.slug === postSlug);
-      if (!post) return shell;
-
-      const postUrl = `${SITE}/?post=${post.slug}`;
-      const title = `${post.title} — CiteSite`;
-
-      return new HTMLRewriter()
-        .on("title", {
-          element(el) {
-            el.setInnerContent(title);
-          },
-        })
-        .on('meta[name="description"]', {
-          element(el) {
-            el.setAttribute("content", post.excerpt);
-          },
-        })
-        .on("head", {
-          element(el) {
-            el.append(
-              `<script type="application/ld+json" data-schema="dynamic">${safeJSON(buildArticleSchema(post))}<\/script>` +
-                `<meta property="og:type" content="article" />` +
-                `<meta property="og:title" content="${ea(title)}" />` +
-                `<meta property="og:description" content="${ea(post.excerpt)}" />` +
-                `<meta property="og:url" content="${ea(postUrl)}" />` +
-                `<meta name="twitter:card" content="summary_large_image" />` +
-                `<meta name="twitter:title" content="${ea(title)}" />` +
-                `<meta name="twitter:description" content="${ea(post.excerpt)}" />`,
-              { html: true },
-            );
-          },
-        })
-        .on("#root", {
-          element(el) {
-            el.setInnerContent(`<article>${post.html}</article>`, {
-              html: true,
-            });
-          },
-        })
-        .transform(shell);
-    }
-
-    if (pathname === "/") return injectMeta(shell, HOME_META, HOME_BODY);
-    if (pathname === "/about") return injectMeta(shell, ABOUT_META, ABOUT_BODY);
-    if (pathname === "/faq") return injectMeta(shell, FAQ_META, FAQ_BODY);
-
-    // All other routes (including /admin-audit) — serve the SPA shell as-is
-    return shell;
+    return withSecurityHeaders(await handleRequest(request, env));
   },
 };
+
+async function handleRequest(request, env) {
+  const url = new URL(request.url);
+  const pathname = url.pathname.replace(/\/$/, "") || "/";
+
+  // Static assets (have file extensions) — pass through directly
+  if (/\.\w+$/.test(pathname)) return env.ASSETS.fetch(request);
+
+  // Fetch the SPA shell — request "/" so ASSETS serves dist/index.html
+  // directly without the /index.html → / canonical redirect it would emit.
+  const shell = await env.ASSETS.fetch(
+    new Request(new URL("/", request.url), request),
+  );
+
+  const postSlug = url.searchParams.get("post");
+
+  // Blog post: /?post=<slug>
+  if (postSlug) {
+    const posts = await fetchManifest(env, request);
+    const post = posts.find((p) => p.slug === postSlug);
+    if (!post) return shell;
+
+    const postUrl = `${SITE}/?post=${post.slug}`;
+    const title = `${post.title} — CiteSite`;
+
+    return new HTMLRewriter()
+      .on("title", {
+        element(el) {
+          el.setInnerContent(title);
+        },
+      })
+      .on('meta[name="description"]', {
+        element(el) {
+          el.setAttribute("content", post.excerpt);
+        },
+      })
+      .on("head", {
+        element(el) {
+          el.append(
+            `<script type="application/ld+json" data-schema="dynamic">${safeJSON(buildArticleSchema(post))}<\/script>` +
+              `<meta property="og:type" content="article" />` +
+              `<meta property="og:title" content="${ea(title)}" />` +
+              `<meta property="og:description" content="${ea(post.excerpt)}" />` +
+              `<meta property="og:url" content="${ea(postUrl)}" />` +
+              `<meta name="twitter:card" content="summary_large_image" />` +
+              `<meta name="twitter:title" content="${ea(title)}" />` +
+              `<meta name="twitter:description" content="${ea(post.excerpt)}" />`,
+            { html: true },
+          );
+        },
+      })
+      .on("#root", {
+        element(el) {
+          el.setInnerContent(`<article>${post.html}</article>`, {
+            html: true,
+          });
+        },
+      })
+      .transform(shell);
+  }
+
+  if (pathname === "/") return injectMeta(shell, HOME_META, HOME_BODY);
+  if (pathname === "/about") return injectMeta(shell, ABOUT_META, ABOUT_BODY);
+  if (pathname === "/faq") return injectMeta(shell, FAQ_META, FAQ_BODY);
+
+  // All other routes (including /admin-audit) — serve the SPA shell as-is
+  return shell;
+}
