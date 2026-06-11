@@ -3,6 +3,20 @@ import { readdir, readFile, writeFile } from "fs/promises";
 import { join, basename } from "path";
 import { fileURLToPath } from "url";
 import { marked } from "marked";
+import sanitizeHtml from "sanitize-html";
+
+const SANITIZE_OPTIONS = {
+  allowedTags: [...sanitizeHtml.defaults.allowedTags, "img"],
+  allowedAttributes: {
+    ...sanitizeHtml.defaults.allowedAttributes,
+    img: ["src", "alt", "title", "width", "height", "loading"],
+    a: ["href", "name", "target", "rel"],
+    code: ["class"],
+    pre: ["class"],
+    span: ["class"],
+  },
+  allowedSchemes: ["http", "https", "mailto"],
+};
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const BLOG_DIR = join(ROOT, "content/blog");
@@ -47,7 +61,7 @@ const posts = await Promise.all(
       excerpt: meta.excerpt || "",
       readTime: meta.readTime || "",
       featured: meta.featured === "true",
-      html: marked.parse(body),
+      html: sanitizeHtml(marked.parse(body), SANITIZE_OPTIONS),
     };
   }),
 );

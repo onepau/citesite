@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { marked } from "marked";
 
 import { AuditPDFDocument } from "./components/AuditPDFDocument";
 import { PDFEditModal } from "./components/PDFEditModal";
@@ -1747,15 +1746,17 @@ export default function App() {
   const priceLabel = localPrice ? formatPrice(localPrice) : "CHF 49.99";
   const isLocalisedPrice = localPrice && localPrice.currency !== "CHF";
 
-  const loadPost = (post) => {
+  const loadPost = async (post) => {
     setSelectedPost(post);
     setPage(PAGES.POST);
     window.history.pushState({}, "", `?post=${post.slug}`);
-    const raw = mdFiles[`../content/blog/${post.slug}.md`];
-    if (raw) {
-      const body = raw.replace(/^---[\s\S]*?---\n/, "");
-      setPostContent(marked.parse(body));
-    } else {
+    setPostContent("");
+    try {
+      const res = await fetch("/blog-manifest.json");
+      const manifest = await res.json();
+      const match = manifest.find((p) => p.slug === post.slug);
+      setPostContent(match?.html || "<p>Full post content coming soon.</p>");
+    } catch {
       setPostContent("<p>Full post content coming soon.</p>");
     }
   };
