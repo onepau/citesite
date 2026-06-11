@@ -330,9 +330,8 @@ function stripNonContent(html) {
 
 async function fetchTargetPage(url) {
   try {
-    const res = await fetch(url, {
+    const res = await safeFetch(url, {
       headers: { "User-Agent": "CiteSiteBot/1.0 (+https://citesite.net)" },
-      redirect: "follow",
     });
     const rawHtml = await res.text();
     return { rawHtml, status: res.status, finalUrl: res.url };
@@ -349,7 +348,7 @@ const isHtmlResponse = (res) =>
 async function fetchRobotsTxt(url) {
   try {
     const origin = new URL(url).origin;
-    const res = await fetch(`${origin}/robots.txt`, { headers: BOT_UA });
+    const res = await safeFetch(`${origin}/robots.txt`, { headers: BOT_UA });
     if (res.ok && !isHtmlResponse(res)) return await res.text();
     return null;
   } catch {
@@ -362,10 +361,10 @@ async function fetchLlmsTxt(url) {
     const origin = new URL(url).origin;
     const notHtml = (r) => (r.ok && !isHtmlResponse(r) ? r.text() : null);
     const [llms, llmsFull] = await Promise.all([
-      fetch(`${origin}/llms.txt`, { headers: BOT_UA })
+      safeFetch(`${origin}/llms.txt`, { headers: BOT_UA })
         .then(notHtml)
         .catch(() => null),
-      fetch(`${origin}/llms-full.txt`, { headers: BOT_UA })
+      safeFetch(`${origin}/llms-full.txt`, { headers: BOT_UA })
         .then(notHtml)
         .catch(() => null),
     ]);
@@ -380,7 +379,7 @@ async function fetchSitemap(url) {
     const origin = new URL(url).origin;
     // Try /sitemap.xml first, then /sitemap_index.xml
     for (const path of ["/sitemap.xml", "/sitemap_index.xml"]) {
-      const res = await fetch(`${origin}${path}`, { headers: BOT_UA });
+      const res = await safeFetch(`${origin}${path}`, { headers: BOT_UA });
       if (res.ok && !isHtmlResponse(res)) return await res.text();
     }
     return null;
@@ -404,6 +403,10 @@ function validateAuditUrl(raw) {
   const host = parsed.hostname.toLowerCase();
 
   if (host === "localhost" || host === "127.0.0.1" || host === "::1") {
+    return { ok: false, error: "URL not allowed" };
+  }
+
+  if (host.endsWith(".internal") || host.endsWith(".local")) {
     return { ok: false, error: "URL not allowed" };
   }
 
@@ -440,6 +443,24 @@ function validateAuditUrl(raw) {
   }
 
   return { ok: true };
+}
+
+const MAX_REDIRECTS = 5;
+
+async function safeFetch(url, init = {}) {
+  let currentUrl = url;
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    const check = validateAuditUrl(currentUrl);
+    if (!check.ok) {
+      throw new Error(`Blocked URL on redirect: ${check.error}`);
+    }
+    const res = await fetch(currentUrl, { ...init, redirect: "manual" });
+    if (res.status < 300 || res.status >= 400) return res;
+    const loc = res.headers.get("Location");
+    if (!loc) return res;
+    currentUrl = new URL(loc, currentUrl).toString();
+  }
+  throw new Error("Too many redirects");
 }
 
 function extractPageMetadata(html, url) {
@@ -653,7 +674,7 @@ async function runAudit(url, env, detailed = false) {
     for (const sitemapUrl of declared.slice(0, 3)) {
       if (!validateAuditUrl(sitemapUrl).ok) continue;
       try {
-        const r = await fetch(sitemapUrl, { headers: BOT_UA });
+        const r = await safeFetch(sitemapUrl, { headers: BOT_UA });
         if (r.ok) {
           sitemapXml = await r.text();
           break;
@@ -984,11 +1005,10 @@ export default {
         const origin = new URL(targetUrl).origin;
         const probe = async (u) => {
           try {
-            const r = await fetch(u, {
+            const r = await safeFetch(u, {
               headers: {
                 "User-Agent": "CiteSiteBot/1.0 (+https://citesite.net)",
               },
-              redirect: "follow",
             });
             const body = await r.text();
             return {
@@ -1262,33 +1282,43 @@ export default {
           headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
         });
       }
-      try { new URL(targetUrl); } catch {
+      try {
+        new URL(targetUrl);
+      } catch {
         return new Response(JSON.stringify({ error: "Invalid URL" }), {
           status: 400,
           headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
         });
       }
-      const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": env.ANTHROPIC_API_KEY,
-          "anthropic-version": "2023-06-01",
+      const anthropicRes = await fetch(
+        "https://api.anthropic.com/v1/messages",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": env.ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
+          },
+          body: JSON.stringify({
+            model: env.FREE_AUDIT_MODEL || "claude-haiku-4-5-20251001",
+            max_tokens: 2000,
+            tools: [{ type: "web_search_20250305", name: "web_search" }],
+            messages: [
+              { role: "user", content: SCHEMA_FORGE_PROMPT(targetUrl.trim()) },
+            ],
+          }),
         },
-        body: JSON.stringify({
-          model: env.FREE_AUDIT_MODEL || "claude-haiku-4-5-20251001",
-          max_tokens: 2000,
-          tools: [{ type: "web_search_20250305", name: "web_search" }],
-          messages: [{ role: "user", content: SCHEMA_FORGE_PROMPT(targetUrl.trim()) }],
-        }),
-      });
+      );
       const anthropicData = await anthropicRes.json().catch(() => ({}));
       if (!anthropicRes.ok) {
         console.error("Anthropic schema-forge error", anthropicData);
-        return new Response(JSON.stringify({ error: "Schema generation failed" }), {
-          status: 502,
-          headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({ error: "Schema generation failed" }),
+          {
+            status: 502,
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          },
+        );
       }
       const schema = (anthropicData.content || [])
         .filter((b) => b.type === "text")
