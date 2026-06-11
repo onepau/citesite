@@ -1,7 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 
-import { AuditPDFDocument } from "./components/AuditPDFDocument";
-import { PDFEditModal } from "./components/PDFEditModal";
+const PDFEditModal = lazy(() =>
+  import("./components/PDFEditModal").then((m) => ({
+    default: m.PDFEditModal,
+  })),
+);
 import { ContactModal } from "./components/ContactModal";
 import { SchemaForge } from "./components/SchemaForge";
 import { getLocalPrice, formatPrice } from "./utils/pricing";
@@ -1764,6 +1767,10 @@ export default function App() {
   const handleGeneratePDF = async (editedData) => {
     setPdfGenerating(true);
     try {
+      const [{ pdf }, { AuditPDFDocument }] = await Promise.all([
+        import("@react-pdf/renderer"),
+        import("./components/AuditPDFDocument"),
+      ]);
       const blob = await pdf(
         <AuditPDFDocument auditData={editedData} url={auditUrl} />,
       ).toBlob();
@@ -3296,28 +3303,32 @@ export default function App() {
       {IS_LOCAL && <DevAdminPanel />}
 
       {showPDFModal && results && (
-        <PDFEditModal
-          auditData={results}
-          url={auditUrl}
-          onClose={() => setShowPDFModal(false)}
-          onGenerate={handleGeneratePDF}
-          isGenerating={pdfGenerating}
-        />
+        <Suspense fallback={null}>
+          <PDFEditModal
+            auditData={results}
+            url={auditUrl}
+            onClose={() => setShowPDFModal(false)}
+            onGenerate={handleGeneratePDF}
+            isGenerating={pdfGenerating}
+          />
+        </Suspense>
       )}
 
       {showContact && <ContactModal onClose={() => setShowContact(false)} />}
 
       {/* Admin review modal — opened from the pending queue */}
       {reviewingAudit && (
-        <PDFEditModal
-          auditData={reviewingAudit.results}
-          url={reviewingAudit.url}
-          onClose={() => setReviewingAudit(null)}
-          onGenerate={handleGeneratePDF}
-          isGenerating={pdfGenerating}
-          onApprove={handleApprove}
-          isApproving={approving}
-        />
+        <Suspense fallback={null}>
+          <PDFEditModal
+            auditData={reviewingAudit.results}
+            url={reviewingAudit.url}
+            onClose={() => setReviewingAudit(null)}
+            onGenerate={handleGeneratePDF}
+            isGenerating={pdfGenerating}
+            onApprove={handleApprove}
+            isApproving={approving}
+          />
+        </Suspense>
       )}
     </div>
   );
