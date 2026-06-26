@@ -1419,6 +1419,7 @@ export default function App() {
   const [pdfGenerating, setPdfGenerating] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
   const [postContent, setPostContent] = useState("");
+  const [postSchema, setPostSchema] = useState(null);
   const [localPrice, setLocalPrice] = useState(null);
   const [orderId, setOrderId] = useState(null);
   const [schemaForgeUnlocked, setSchemaForgeUnlocked] = useState(
@@ -1642,8 +1643,13 @@ export default function App() {
             headline: selectedPost.title,
             description: selectedPost.excerpt,
             datePublished: selectedPost.date,
+            ...(postSchema?.dateModified && {
+              dateModified: postSchema.dateModified,
+            }),
             articleSection: selectedPost.category,
             keywords: selectedPost.category,
+            ...(postSchema?.about && { about: postSchema.about }),
+            ...(postSchema?.mentions && { mentions: postSchema.mentions }),
             author: {
               "@type": "Organization",
               "@id": `${SITE_URL}/#organization`,
@@ -1712,7 +1718,7 @@ export default function App() {
     } else {
       removeTag();
     }
-  }, [page, selectedPost]);
+  }, [page, selectedPost, postSchema]);
 
   const handleApprove = async (editedData) => {
     if (!reviewingAudit) return;
@@ -1754,11 +1760,13 @@ export default function App() {
     setPage(PAGES.POST);
     window.history.pushState({}, "", `?post=${post.slug}`);
     setPostContent("");
+    setPostSchema(null);
     try {
       const res = await fetch("/blog-manifest.json");
       const manifest = await res.json();
       const match = manifest.find((p) => p.slug === post.slug);
       setPostContent(match?.html || "<p>Full post content coming soon.</p>");
+      setPostSchema(match?.schema || null);
     } catch {
       setPostContent("<p>Full post content coming soon.</p>");
     }
@@ -1867,7 +1875,9 @@ export default function App() {
   return (
     <div
       className="min-h-screen bg-slate-950 text-slate-100"
-      style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
+      style={{
+        fontFamily: "'Inter', 'Inter Fallback', system-ui, sans-serif",
+      }}
     >
       {/* NAV */}
       <nav className="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-lg border-b border-slate-800">
