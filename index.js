@@ -252,7 +252,19 @@ const FAQ_BODY = `
 <footer><p><a href="/">Run an audit</a> · <a href="/about">About CiteSite</a> · <a href="https://pauloneilphotography.com">Paul O'Neil Photography</a></p></footer>
 `;
 
-function injectMeta(shell, meta, bodyHtml) {
+/* Crawlers get the pre-rendered body injected into #root; browsers get the
+   untouched shell so React's mount never wipes visible content (zero CLS).
+   Lighthouse is deliberately NOT matched — it must measure what users see.
+   An empty UA is treated as a crawler (plain fetchers, curl, etc.). */
+const CRAWLER_UA_RE =
+  /bot|crawl|spider|slurp|bingpreview|facebookexternalhit|whatsapp|telegram|twitter|linkedin|pinterest|embedly|quora|skype|vkshare|claude|anthropic|perplexity|gptbot|chatgpt/i;
+
+function isCrawler(request) {
+  const ua = request.headers.get("User-Agent") || "";
+  return ua === "" || CRAWLER_UA_RE.test(ua);
+}
+
+function injectMeta(shell, meta, bodyHtml, includeBody) {
   const headTags = [
     `<link rel="canonical" href="${ea(meta.canonical)}" />`,
     ...meta.schemas.map(
@@ -268,7 +280,7 @@ function injectMeta(shell, meta, bodyHtml) {
     `<meta name="twitter:description" content="${ea(meta.description)}" />`,
   ].join("");
 
-  return new HTMLRewriter()
+  const rewriter = new HTMLRewriter()
     .on("title", {
       element(el) {
         el.setInnerContent(meta.title);
@@ -283,20 +295,24 @@ function injectMeta(shell, meta, bodyHtml) {
       element(el) {
         el.append(headTags, { html: true });
       },
-    })
-    .on("#root", {
+    });
+
+  if (includeBody) {
+    rewriter.on("#root", {
       element(el) {
         el.setInnerContent(bodyHtml, { html: true });
       },
-    })
-    .transform(shell);
+    });
+  }
+
+  return rewriter.transform(shell);
 }
 
 const CSP = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://*.googletagmanager.com https://*.google-analytics.com",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "font-src 'self' data: https://fonts.gstatic.com",
+  "style-src 'self' 'unsafe-inline'",
+  "font-src 'self' data:",
   "img-src 'self' data: blob: https:",
   "connect-src 'self' https://api.citesite.net https://*.google-analytics.com https://*.googletagmanager.com https://stats.g.doubleclick.net",
   "worker-src 'self' blob:",
@@ -316,6 +332,10 @@ const SECURITY_HEADERS = {
 function withSecurityHeaders(response) {
   const headers = new Headers(response.headers);
   for (const [k, v] of Object.entries(SECURITY_HEADERS)) headers.set(k, v);
+  // HTML responses differ by user-agent (crawlers get pre-rendered #root)
+  if ((headers.get("Content-Type") || "").includes("text/html")) {
+    headers.append("Vary", "User-Agent");
+  }
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -325,6 +345,11 @@ function withSecurityHeaders(response) {
 
 export default {
   async fetch(request, env) {
+    const url = new URL(request.url);
+    // Admin CMS loads Decap from unpkg.com — exempt from the main site CSP
+    if (url.pathname === "/admin" || url.pathname === "/admin/") {
+      return handleRequest(request, env);
+    }
     return withSecurityHeaders(await handleRequest(request, env));
   },
 };
@@ -332,6 +357,13 @@ export default {
 async function handleRequest(request, env) {
   const url = new URL(request.url);
   const pathname = url.pathname.replace(/\/$/, "") || "/";
+
+  // Admin CMS — serve Decap CMS shell directly, not the React SPA
+  if (pathname === "/admin") {
+    return env.ASSETS.fetch(
+      new Request(new URL("/admin/index.html", request.url), request),
+    );
+  }
 
   // Static assets (have file extensions) — pass through directly
   if (/\.\w+$/.test(pathname)) return env.ASSETS.fetch(request);
@@ -343,6 +375,7 @@ async function handleRequest(request, env) {
   );
 
   const postSlug = url.searchParams.get("post");
+  const includeBody = isCrawler(request);
 
   // Blog post: /?post=<slug>
   if (postSlug) {
@@ -353,7 +386,7 @@ async function handleRequest(request, env) {
     const postUrl = `${SITE}/?post=${post.slug}`;
     const title = `${post.title} — CiteSite`;
 
-    return new HTMLRewriter()
+    const rewriter = new HTMLRewriter()
       .on("title", {
         element(el) {
           el.setInnerContent(title);
@@ -378,20 +411,27 @@ async function handleRequest(request, env) {
             { html: true },
           );
         },
-      })
-      .on("#root", {
+      });
+
+    if (includeBody) {
+      rewriter.on("#root", {
         element(el) {
           el.setInnerContent(`<article>${post.html}</article>`, {
             html: true,
           });
         },
-      })
-      .transform(shell);
+      });
+    }
+
+    return rewriter.transform(shell);
   }
 
-  if (pathname === "/") return injectMeta(shell, HOME_META, HOME_BODY);
-  if (pathname === "/about") return injectMeta(shell, ABOUT_META, ABOUT_BODY);
-  if (pathname === "/faq") return injectMeta(shell, FAQ_META, FAQ_BODY);
+  if (pathname === "/")
+    return injectMeta(shell, HOME_META, HOME_BODY, includeBody);
+  if (pathname === "/about")
+    return injectMeta(shell, ABOUT_META, ABOUT_BODY, includeBody);
+  if (pathname === "/faq")
+    return injectMeta(shell, FAQ_META, FAQ_BODY, includeBody);
 
   // All other routes (including /admin-audit) — serve the SPA shell as-is
   return shell;
