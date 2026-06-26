@@ -2527,23 +2527,25 @@ export default function App() {
                 sdDim && (sdDim.score < 50 || jsonldCheck?.score === 0);
               if (!isWeak) return null;
               return (
-                <div className="rounded-xl border border-violet-500/30 bg-violet-500/5 p-5 mb-6 flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0 text-white font-bold text-sm">
-                    ⟨/⟩
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white font-semibold text-sm mb-1">
-                      Your structured data needs work
-                    </p>
-                    <p className="text-slate-400 text-xs leading-relaxed">
-                      Missing or weak JSON-LD means AI engines can&apos;t
-                      properly understand your content. Generate ready-to-paste
-                      schema markup for free — just subscribe to our newsletter.
-                    </p>
+                <div className="rounded-xl border border-violet-500/30 bg-violet-500/5 p-5 mb-6 flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4">
+                  <div className="flex items-start gap-4 flex-1 min-w-0">
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0 text-white font-bold text-sm">
+                      ⟨/⟩
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-semibold text-sm mb-1">
+                        Your structured data needs work
+                      </p>
+                      <p className="text-slate-400 text-xs leading-relaxed">
+                        Missing or weak JSON-LD means AI engines can&apos;t
+                        properly understand your content. Generate ready-to-paste
+                        schema markup for free — just subscribe to our newsletter.
+                      </p>
+                    </div>
                   </div>
                   <button
                     onClick={() => setPage(PAGES.SCHEMA_FORGE)}
-                    className="flex-shrink-0 bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-4 py-2 rounded-lg text-xs font-semibold hover:from-cyan-400 hover:to-blue-500 transition-all whitespace-nowrap"
+                    className="w-full sm:w-auto flex-shrink-0 bg-gradient-to-r from-cyan-500 to-blue-600 text-white px-4 py-2 rounded-lg text-xs font-semibold hover:from-cyan-400 hover:to-blue-500 transition-all text-center"
                   >
                     Get Free Generator →
                   </button>
@@ -3181,7 +3183,7 @@ export default function App() {
                     </p>
                   </div>
                 ) : (
-                  <div className="flex gap-2 max-w-sm mx-auto">
+                  <div className="flex flex-col sm:flex-row gap-2 max-w-sm mx-auto">
                     <input
                       type="email"
                       value={sfEmail}
@@ -3205,7 +3207,7 @@ export default function App() {
                         setSchemaForgeUnlocked(true);
                         sessionStorage.setItem("schemaForgeUnlocked", "1");
                       }}
-                      className="bg-gradient-to-r from-violet-500 to-purple-600 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:from-violet-400 hover:to-purple-500 transition-all"
+                      className="w-full sm:w-auto bg-gradient-to-r from-violet-500 to-purple-600 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:from-violet-400 hover:to-purple-500 transition-all"
                     >
                       Subscribe &amp; Unlock
                     </button>
