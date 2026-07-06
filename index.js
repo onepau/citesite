@@ -359,9 +359,12 @@ async function handleRequest(request, env) {
   const pathname = url.pathname.replace(/\/$/, "") || "/";
 
   // Admin CMS — serve Decap CMS shell directly, not the React SPA
+  // Fetch /admin/ (directory URL) not /admin/index.html — Cloudflare Assets
+  // redirects explicit index.html requests to the directory URL, which would
+  // loop back through the worker.
   if (pathname === "/admin") {
     return env.ASSETS.fetch(
-      new Request(new URL("/admin/index.html", request.url), request),
+      new Request(new URL("/admin/", request.url), request),
     );
   }
 
