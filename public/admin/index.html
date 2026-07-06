@@ -6,41 +6,64 @@
     <title>CiteSite CMS</title>
   </head>
   <body>
-    <script type="application/x-decap-cms">
-      backend:
-        name: github
-        repo: onepau/citesite
-        branch: main
-        base_url: https://citesite-oauth.onepau.workers.dev
-
-      media_folder: "public/images/blog"
-      public_folder: "/images/blog"
-
-      collections:
-        - name: "blog"
-          label: "Blog Posts"
-          folder: "content/blog"
-          create: true
-          slug: "{{slug}}"
-          fields:
-            - { label: "Title", name: "title", widget: "string" }
-            - { label: "Publish Date", name: "date", widget: "datetime" }
-            - label: "Category"
-              name: "category"
-              widget: "select"
-              options:
-                - "GEO Fundamentals"
-                - "Technical Guide"
-                - "Structured Data"
-                - "Strategy"
-                - "Case Study"
-                - "Algorithm Updates"
-                - "Tools & Resources"
-            - { label: "Excerpt", name: "excerpt", widget: "text" }
-            - { label: "Read Time", name: "readTime", widget: "string", default: "5 min" }
-            - { label: "Featured", name: "featured", widget: "boolean", default: false }
-            - { label: "Body", name: "body", widget: "markdown" }
+    <script>
+      window.CMS_MANUAL_INIT = true;
     </script>
     <script src="https://unpkg.com/decap-cms@^3.0.0/dist/decap-cms.js"></script>
+    <script>
+      CMS.init({
+        config: {
+          backend: {
+            name: "github",
+            repo: "onepau/citesite",
+            branch: "main",
+            base_url: "https://citesite-oauth.onepau.workers.dev",
+          },
+          media_folder: "public/images/blog",
+          public_folder: "/images/blog",
+          collections: [
+            {
+              name: "blog",
+              label: "Blog Posts",
+              folder: "content/blog",
+              create: true,
+              slug: "{{slug}}",
+              fields: [
+                { label: "Title", name: "title", widget: "string" },
+                { label: "Publish Date", name: "date", widget: "datetime" },
+                {
+                  label: "Category",
+                  name: "category",
+                  widget: "select",
+                  options: [
+                    "GEO Fundamentals",
+                    "Technical Guide",
+                    "Structured Data",
+                    "Strategy",
+                    "Case Study",
+                    "Algorithm Updates",
+                    "Tools & Resources",
+                  ],
+                },
+                { label: "Excerpt", name: "excerpt", widget: "text" },
+                {
+                  label: "Read Time",
+                  name: "readTime",
+                  widget: "string",
+                  default: "5 min",
+                },
+                {
+                  label: "Featured",
+                  name: "featured",
+                  widget: "boolean",
+                  default: false,
+                },
+                { label: "Body", name: "body", widget: "markdown" },
+              ],
+            },
+          ],
+        },
+      });
+    </script>
   </body>
 </html>
