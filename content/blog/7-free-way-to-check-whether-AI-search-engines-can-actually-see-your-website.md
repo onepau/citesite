@@ -1,6 +1,15 @@
-# 7 free ways to check whether AI search engines can actually see your website
-
-Most site owners have run a Google PageSpeed test. Far fewer have checked whether ChatGPT, Perplexity or Google's AI Overviews can actually read, understand and cite their content. That's a different question, and increasingly a more important one.
+---
+title: 7 free ways to check whether AI search engines can actually see your website
+date: 2026-07-08T12:38:00.000+02:00
+category: Technical Guide
+excerpt: Most site owners have run a Google PageSpeed test. Far fewer have
+  checked whether ChatGPT, Perplexity or Google's AI Overviews can actually
+  read, understand and cite their content. That's a different question, and
+  increasingly a more important one.
+readTime: 5 min
+featured: true
+---
+![](/images/blog/citesite-listicle.png)
 
 Generative engine optimisation (GEO) is the discipline of making your website legible to AI systems rather than just crawlable by traditional search bots. The two overlap, but they're not the same thing — a page can rank perfectly well on Google while being invisible to an LLM that's summarising answers rather than indexing pages.
 
@@ -40,10 +49,11 @@ It doesn't replace the manual checks above; it consolidates them into one pass s
 
 If you only have ten minutes, do two things: view source on your homepage to check what's actually reaching crawlers, and run your URL through a free audit to get a structured baseline. Everything else on this list is worth doing eventually, but those two will tell you the most for the least effort.
 
----
+- - -
 
 *CiteSite is a free AI visibility audit tool. Run your site at [citesite.net](https://citesite.net).*
 
+```
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -72,3 +82,4 @@ If you only have ten minutes, do two things: view source on your homepage to che
   }
 }
 </script>
+```
