@@ -1,5 +1,5 @@
 ---
-title: "Thinking, Fast and Cited: what ChatGPT's reasoning mode means for AI
+title: "Thinking, fast and cited: what ChatGPT's reasoning mode means for AI
   citations and GEO"
 date: 2026-07-09T15:19:00.000+02:00
 category: GEO Fundamentals
