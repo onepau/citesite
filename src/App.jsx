@@ -985,6 +985,86 @@ const DimensionCard = ({ dim, isPaid, onUnlock, priceLabel }) => {
   );
 };
 
+const FetchWarningModal = ({ warning, onDismiss }) => (
+  <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="bg-slate-800 rounded-2xl border border-amber-500/40 max-w-md w-full p-6 shadow-2xl">
+      <div className="flex items-start gap-4 mb-4">
+        <div className="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0">
+          <AlertTriangle size={24} className="text-amber-400" />
+        </div>
+        <div>
+          <h3 className="text-white font-bold text-base mb-1">
+            URL was redirected
+          </h3>
+          <p className="text-slate-400 text-sm leading-relaxed">
+            The URL you entered redirected to a different address. The audit
+            reflects the final destination, not the original URL entered.
+          </p>
+        </div>
+      </div>
+      {warning.originalUrl && warning.finalUrl && (
+        <div className="bg-slate-900/60 rounded-lg p-3 mb-4 text-xs space-y-2">
+          <div>
+            <span className="text-slate-500 uppercase tracking-wider text-[10px] font-semibold">
+              Entered
+            </span>
+            <p className="text-slate-300 font-mono truncate mt-0.5">
+              {warning.originalUrl}
+            </p>
+          </div>
+          <div>
+            <span className="text-slate-500 uppercase tracking-wider text-[10px] font-semibold">
+              Audited
+            </span>
+            <p className="text-cyan-400 font-mono truncate mt-0.5">
+              {warning.finalUrl}
+            </p>
+          </div>
+        </div>
+      )}
+      <button
+        onClick={onDismiss}
+        className="w-full bg-slate-700 hover:bg-slate-600 text-white py-2.5 rounded-lg font-medium transition-colors text-sm"
+      >
+        I understand — show results anyway
+      </button>
+    </div>
+  </div>
+);
+
+const ForbiddenModal = ({ onTryAnother }) => (
+  <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="bg-slate-800 rounded-2xl border border-red-500/40 max-w-md w-full p-6 shadow-2xl">
+      <div className="flex items-start gap-4 mb-4">
+        <div className="w-12 h-12 rounded-xl bg-red-500/20 flex items-center justify-center shrink-0">
+          <XCircle size={24} className="text-red-400" />
+        </div>
+        <div>
+          <h3 className="text-white font-bold text-base mb-1">
+            Access blocked (403 Forbidden)
+          </h3>
+          <p className="text-slate-400 text-sm leading-relaxed">
+            The server refused to serve this page to our crawler, so no content
+            was retrieved. Running the audit would produce meaningless results
+            and waste API resources — the audit has been stopped.
+          </p>
+        </div>
+      </div>
+      <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 mb-5 text-xs text-red-300 leading-relaxed">
+        This usually means the page requires login, is behind a paywall, or has
+        bot-detection that blocks automated access. Try a publicly accessible
+        page on the same domain (e.g. the homepage or a blog post).
+      </div>
+      <button
+        onClick={onTryAnother}
+        className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white py-2.5 rounded-lg font-medium transition-all text-sm"
+      >
+        Try a different URL
+      </button>
+    </div>
+  </div>
+);
+
 const PaymentModal = ({ onClose, url, localPrice, initialCoupon = "" }) => {
   const [email, setEmail] = useState("");
   const [editableUrl, setEditableUrl] = useState(url || "");
@@ -1082,6 +1162,20 @@ const PaymentModal = ({ onClose, url, localPrice, initialCoupon = "" }) => {
     setPaymentError(null);
     setProcessing(true);
     try {
+      const preflightRes = await fetch(`${API_BASE}/api/audit/preflight`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: normalisedUrl }),
+      });
+      const preflightData = await preflightRes.json().catch(() => ({}));
+      if (preflightData.reason === "forbidden_403") {
+        setPaymentError(
+          "This URL returned 403 Forbidden — the page is blocking our crawler, so an audit would produce no usable results. Please enter a publicly accessible URL.",
+        );
+        setProcessing(false);
+        return;
+      }
+
       const res = await fetch(`${API_BASE}/api/checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1409,6 +1503,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [auditError, setAuditError] = useState(null);
   const [auditErrorCode, setAuditErrorCode] = useState(null);
+  const [fetchWarning, setFetchWarning] = useState(null);
   const [nlHomeEmail, setNlHomeEmail] = useState("");
   const [nlHomeSent, setNlHomeSent] = useState(false);
   const [nlResultEmail, setNlResultEmail] = useState("");
@@ -1843,6 +1938,7 @@ export default function App() {
       }
       setResults(data);
       setPage(PAGES.RESULTS);
+      if (data.fetchWarning) setFetchWarning(data.fetchWarning);
     } catch (err) {
       setAuditError(err.message);
       setAuditErrorCode(err.code || null);
@@ -2158,6 +2254,7 @@ export default function App() {
 
       {/* ERROR */}
       {auditError &&
+        auditErrorCode !== "forbidden_403" &&
         !loading &&
         (page === PAGES.HOME || page === PAGES.ADMIN_AUDIT) && (
           <div className="max-w-md mx-auto px-4 pt-16 text-center">
@@ -3325,6 +3422,23 @@ export default function App() {
       )}
 
       {showContact && <ContactModal onClose={() => setShowContact(false)} />}
+
+      {fetchWarning && (
+        <FetchWarningModal
+          warning={fetchWarning}
+          onDismiss={() => setFetchWarning(null)}
+        />
+      )}
+
+      {auditErrorCode === "forbidden_403" && !loading && (
+        <ForbiddenModal
+          onTryAnother={() => {
+            setAuditError(null);
+            setAuditErrorCode(null);
+            setUrl("");
+          }}
+        />
+      )}
 
       {/* Admin review modal — opened from the pending queue */}
       {reviewingAudit && (

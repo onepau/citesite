@@ -665,6 +665,14 @@ async function runAudit(url, env, detailed = false) {
     return { error: `Could not fetch page: ${page.error}` };
   }
 
+  if (page.status === 403) {
+    return {
+      error:
+        "The server returned 403 Forbidden — this URL blocked our crawler from accessing its content. Running the audit would produce meaningless results, so it has been stopped. Please check that the page is publicly accessible and try a different URL.",
+      errorCode: "forbidden_403",
+    };
+  }
+
   // If /sitemap.xml and /sitemap_index.xml both failed, try Sitemap: directives from robots.txt
   let sitemapXml = rawSitemap;
   if (!sitemapXml && robotsTxt) {
@@ -835,6 +843,22 @@ async function runAudit(url, env, detailed = false) {
       delete parsed.contentType;
       delete parsed.rendering;
     }
+
+    // Attach fetch warning when the page redirected to a different URL
+    if (page.finalUrl) {
+      try {
+        if (new URL(page.finalUrl).href !== new URL(url).href) {
+          parsed.fetchWarning = {
+            type: "redirect",
+            originalUrl: url,
+            finalUrl: page.finalUrl,
+          };
+        }
+      } catch {
+        // URL parse failed — skip redirect check
+      }
+    }
+
     return parsed;
   } catch {
     return { error: "Failed to parse audit response", raw: fullText };
@@ -941,6 +965,7 @@ function filterFreeTier(results) {
     roadmap: null,
     toolRecommendations: null,
     tier: "free",
+    fetchWarning: results.fetchWarning || null,
   };
 }
 
@@ -955,6 +980,7 @@ function extractCoreFromDetailed(results) {
     criticalIssues: results.criticalIssues,
     improvements: results.improvements,
     signatureRecommendation: results.signatureRecommendation,
+    fetchWarning: results.fetchWarning || null,
   };
 }
 
@@ -1151,6 +1177,54 @@ export default {
     } catch {
       return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
         status: 400,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
+    // POST /api/audit/preflight — lightweight URL reachability check (no Claude)
+    if (reqUrl.pathname === "/api/audit/preflight") {
+      const { url: preflightUrl } = body || {};
+      if (!preflightUrl) {
+        return new Response(
+          JSON.stringify({ ok: false, reason: "missing_url" }),
+          {
+            status: 400,
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          },
+        );
+      }
+      const preflightCheck = validateAuditUrl(preflightUrl);
+      if (!preflightCheck.ok) {
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            reason: "invalid_url",
+            message: preflightCheck.error,
+          }),
+          {
+            status: 400,
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+          },
+        );
+      }
+      const page = await fetchTargetPage(preflightUrl);
+      if (!page.rawHtml) {
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            reason: "fetch_error",
+            message: page.error,
+          }),
+          { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } },
+        );
+      }
+      if (page.status === 403) {
+        return new Response(
+          JSON.stringify({ ok: false, reason: "forbidden_403" }),
+          { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } },
+        );
+      }
+      return new Response(JSON.stringify({ ok: true }), {
         headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
       });
     }
