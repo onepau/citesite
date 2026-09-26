@@ -564,6 +564,13 @@ function parseFrontmatter(raw) {
       result[currentKey] = currentVal;
     }
   }
+  // YAML-quoted values (the CMS quotes any value containing ": ") → plain text
+  for (const [key, val] of Object.entries(result)) {
+    const dq = val.match(/^"([\s\S]*)"$/);
+    const sq = val.match(/^'([\s\S]*)'$/);
+    if (dq) result[key] = dq[1].replace(/\\"/g, '"');
+    else if (sq) result[key] = sq[1].replace(/''/g, "'");
+  }
   if (result.featured === "true") result.featured = true;
   if (result.featured === "false") result.featured = false;
   return result;
