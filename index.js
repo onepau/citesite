@@ -378,6 +378,62 @@ function notFound(shell) {
   return new Response(shell.body, { status: 404, headers });
 }
 
+// --- Local price (display currency) ---
+// The visitor's country comes from Cloudflare (request.cf.country), so no
+// third-party IP lookup is needed. Rates are the ECB daily reference rates
+// (EUR-based), converted to per-CHF and cached at the edge for six hours.
+
+const ECB_RATES_URL =
+  "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml";
+
+const COUNTRY_CURRENCY = {
+  ...Object.fromEntries(
+    "AT BE BG HR CY EE FI FR DE GR IE IT LV LT LU MT NL PT SK SI ES AD MC SM VA ME XK"
+      .split(" ")
+      .map((c) => [c, "EUR"]),
+  ),
+  CH: "CHF", LI: "CHF", US: "USD", GB: "GBP", JP: "JPY", CN: "CNY",
+  AU: "AUD", CA: "CAD", NZ: "NZD", HK: "HKD", SG: "SGD", IN: "INR",
+  KR: "KRW", BR: "BRL", MX: "MXN", ZA: "ZAR", TR: "TRY", PL: "PLN",
+  SE: "SEK", NO: "NOK", DK: "DKK", CZ: "CZK", IL: "ILS", TH: "THB",
+  PH: "PHP", ID: "IDR", MY: "MYR", HU: "HUF", RO: "RON", IS: "ISK",
+};
+
+async function chfRate(currency) {
+  const res = await fetch(ECB_RATES_URL, {
+    cf: { cacheTtl: 21600, cacheEverything: true },
+  });
+  if (!res.ok) return null;
+  const xml = await res.text();
+  const eurTo = (code) => {
+    const m = xml.match(new RegExp(`currency='${code}' rate='([\\d.]+)'`));
+    return m ? Number(m[1]) : null;
+  };
+  const eurChf = eurTo("CHF");
+  const eurX = currency === "EUR" ? 1 : eurTo(currency);
+  return eurChf && eurX ? eurX / eurChf : null;
+}
+
+async function localPriceResponse(request) {
+  const chf = { currency: "CHF", rate: 1 };
+  let body = chf;
+  try {
+    const currency = COUNTRY_CURRENCY[request.cf?.country] || null;
+    if (currency && currency !== "CHF") {
+      const rate = await chfRate(currency);
+      if (rate > 0 && Number.isFinite(rate)) body = { currency, rate };
+    }
+  } catch {
+    body = chf;
+  }
+  return new Response(JSON.stringify(body), {
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "private, max-age=3600",
+    },
+  });
+}
+
 const CSP = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://*.googletagmanager.com https://*.google-analytics.com https://www.clarity.ms https://scripts.clarity.ms",
@@ -437,6 +493,9 @@ async function handleRequest(request, env) {
       new Request(new URL("/admin/", request.url), request),
     );
   }
+
+  // Display-currency lookup for the pricing UI
+  if (pathname === "/api/local-price") return localPriceResponse(request);
 
   // Static assets (have file extensions) — pass through directly
   if (/\.\w+$/.test(pathname)) return env.ASSETS.fetch(request);

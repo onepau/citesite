@@ -2,9 +2,10 @@
    CiteSite — IP-localised display pricing
    ───────────────────────────────────────────────────────────────────
    Canonical price is CHF 49 (one-off). On the pricing page and
-   payment modal we DETECT the visitor's currency from their IP,
-   convert via the daily ECB-sourced rate, and round UP to the
-   nearest .99 for display only.
+   payment modal we DETECT the visitor's currency from their country
+   (Cloudflare, via the worker's /api/local-price endpoint), convert
+   via the daily ECB reference rate, and round UP to the nearest .99
+   for display only.
 
    IMPORTANT — FX policy:
    The customer is CHARGED IN CHF when Stripe processes the order.
@@ -60,18 +61,15 @@ let _cached = null;
 export async function getLocalPrice() {
   if (_cached) return _cached;
   try {
-    const geo = await fetchJSON('https://ipapi.co/json/');
-    const currency = String(geo.currency || '').toUpperCase();
+    // Same-origin worker endpoint: country from Cloudflare, ECB daily rate
+    const { currency: rawCurrency, rate } = await fetchJSON('/api/local-price');
+    const currency = String(rawCurrency || '').toUpperCase();
 
     if (!currency || currency === 'CHF') {
       _cached = FALLBACK;
       return FALLBACK;
     }
 
-    const fx = await fetchJSON(
-      `https://api.frankfurter.app/latest?from=CHF&to=${currency}`
-    );
-    const rate = fx.rates && fx.rates[currency];
     if (!rate || !Number.isFinite(rate) || rate <= 0) {
       _cached = FALLBACK;
       return FALLBACK;
