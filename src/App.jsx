@@ -1491,6 +1491,36 @@ const PAGES = {
   SCHEMA_FORGE: "schema-forge",
 };
 
+// Blog URLs: /blog (index) and /blog/<slug> (post). Legacy /?post=<slug> links
+// are redirected by the worker; still honoured here for the Vite dev server.
+function blogRouteFromLocation() {
+  if (typeof window === "undefined") return null;
+  const path = window.location.pathname.replace(/\/$/, "");
+  const postMatch = path.match(/^\/blog\/([^/]+)$/);
+  const slug =
+    postMatch?.[1] || new URLSearchParams(window.location.search).get("post");
+  if (slug) {
+    const post = BLOG_POSTS.find((p) => p.slug === slug);
+    return post ? { page: PAGES.POST, post } : { page: PAGES.BLOG };
+  }
+  if (path === "/blog") return { page: PAGES.BLOG };
+  return null;
+}
+
+// In-app navigation for real <a href> links; modified clicks open normally
+function followLink(e, navigate) {
+  if (e.defaultPrevented || e.button !== 0) return;
+  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  e.preventDefault();
+  navigate();
+}
+
+function pathForPage(page, post) {
+  if (page === PAGES.POST && post) return `/blog/${post.slug}`;
+  if (page === PAGES.BLOG) return "/blog";
+  return null;
+}
+
 export default function App() {
   const [page, setPage] = useState(() => {
     if (
@@ -1498,7 +1528,7 @@ export default function App() {
       window.location.pathname === "/admin-audit"
     )
       return PAGES.ADMIN_AUDIT;
-    return PAGES.HOME;
+    return blogRouteFromLocation()?.page || PAGES.HOME;
   });
   const isAdmin =
     typeof window !== "undefined" &&
@@ -1519,7 +1549,9 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showPDFModal, setShowPDFModal] = useState(false);
   const [pdfGenerating, setPdfGenerating] = useState(false);
-  const [selectedPost, setSelectedPost] = useState(null);
+  const [selectedPost, setSelectedPost] = useState(
+    () => blogRouteFromLocation()?.post || null,
+  );
   const [postContent, setPostContent] = useState("");
   const [postSchema, setPostSchema] = useState(null);
   const [localPrice, setLocalPrice] = useState(null);
@@ -1632,15 +1664,33 @@ export default function App() {
     loadFullAudit();
   }, [paymentSuccess, orderId, auditUrl]);
 
-  // Deep-link to a blog post via ?post=<slug>
+  // Deep-link to a blog post via /blog/<slug>
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const postSlug = params.get("post");
-    if (!postSlug) return;
-    const match = BLOG_POSTS.find((p) => p.slug === postSlug);
-    if (match) loadPost(match);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    const route = blogRouteFromLocation();
+    if (route?.post) loadPost(route.post);
+  }, []);
+
+  // Keep the address bar in step with the blog pages; leave other pages' URLs
+  // (audit query params, /admin-audit) alone unless we're leaving the blog.
+  useEffect(() => {
+    if (typeof window === "undefined" || isAdmin) return;
+    const current = window.location.pathname.replace(/\/$/, "") || "/";
+    const target =
+      pathForPage(page, selectedPost) ||
+      (current.startsWith("/blog") ? "/" : null);
+    if (target && target !== current) window.history.pushState({}, "", target);
+  }, [page, selectedPost, isAdmin]);
+
+  // Back/forward buttons
+  useEffect(() => {
+    const onPopState = () => {
+      const route = blogRouteFromLocation();
+      if (route?.post) loadPost(route.post);
+      else setPage(route?.page || PAGES.HOME);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   // Load audit for returning user arriving via ?orderId=X link from approval email
   useEffect(() => {
@@ -1735,7 +1785,7 @@ export default function App() {
     };
 
     if (page === PAGES.POST && selectedPost) {
-      const postUrl = `${SITE_URL}/?post=${selectedPost.slug}`;
+      const postUrl = `${SITE_URL}/blog/${selectedPost.slug}`;
       const schema = {
         "@context": "https://schema.org",
         "@graph": [
@@ -1788,7 +1838,7 @@ export default function App() {
                 "@type": "ListItem",
                 position: 2,
                 name: "Blog",
-                item: `${SITE_URL}/`,
+                item: `${SITE_URL}/blog`,
               },
               {
                 "@type": "ListItem",
@@ -1810,7 +1860,7 @@ export default function App() {
         name: "CiteSite Blog",
         description:
           "Guides, case studies, and updates on SEO, GEO, and AI-optimised content.",
-        url: `${SITE_URL}/`,
+        url: `${SITE_URL}/blog`,
         publisher: {
           "@type": "Organization",
           "@id": `${SITE_URL}/#organization`,
@@ -1862,7 +1912,6 @@ export default function App() {
   const loadPost = async (post) => {
     setSelectedPost(post);
     setPage(PAGES.POST);
-    window.history.pushState({}, "", `?post=${post.slug}`);
     setPostContent("");
     setPostSchema(null);
     try {
@@ -2008,15 +2057,13 @@ export default function App() {
             >
               Audit
             </button>
-            <button
-              onClick={() => {
-                window.history.pushState({}, "", window.location.pathname);
-                setPage(PAGES.BLOG);
-              }}
+            <a
+              href="/blog"
+              onClick={(e) => followLink(e, () => setPage(PAGES.BLOG))}
               className="text-slate-400 hover:text-white transition-colors"
             >
               Blog
-            </button>
+            </a>
             <button
               onClick={() => setPage(PAGES.PRICING)}
               className="text-slate-400 hover:text-white transition-colors"
@@ -2048,16 +2095,18 @@ export default function App() {
             >
               Audit
             </button>
-            <button
-              onClick={() => {
-                window.history.pushState({}, "", window.location.pathname);
-                setPage(PAGES.BLOG);
-                setMenuOpen(false);
-              }}
+            <a
+              href="/blog"
+              onClick={(e) =>
+                followLink(e, () => {
+                  setPage(PAGES.BLOG);
+                  setMenuOpen(false);
+                })
+              }
               className="block w-full text-left text-slate-300 py-2"
             >
               Blog
-            </button>
+            </a>
             <button
               onClick={() => {
                 setPage(PAGES.PRICING);
@@ -3020,10 +3069,11 @@ export default function App() {
           </p>
           <div className="grid md:grid-cols-2 gap-5">
             {BLOG_POSTS.map((p) => (
-              <article
+              <a
                 key={p.id}
-                onClick={() => loadPost(p)}
-                className="bg-slate-800/80 rounded-xl border border-slate-700/50 p-5 hover:border-cyan-500/30 transition-colors cursor-pointer group"
+                href={`/blog/${p.slug}`}
+                onClick={(e) => followLink(e, () => loadPost(p))}
+                className="block bg-slate-800/80 rounded-xl border border-slate-700/50 p-5 hover:border-cyan-500/30 transition-colors cursor-pointer group"
               >
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
@@ -3043,7 +3093,7 @@ export default function App() {
                     Read <ChevronRight size={14} />
                   </span>
                 </div>
-              </article>
+              </a>
             ))}
           </div>
         </div>
@@ -3052,15 +3102,13 @@ export default function App() {
       {/* BLOG POST */}
       {page === PAGES.POST && selectedPost && (
         <div className="max-w-2xl mx-auto px-4 py-12">
-          <button
-            onClick={() => {
-              window.history.pushState({}, "", window.location.pathname);
-              setPage(PAGES.BLOG);
-            }}
+          <a
+            href="/blog"
+            onClick={(e) => followLink(e, () => setPage(PAGES.BLOG))}
             className="text-slate-400 text-sm mb-8 hover:text-white flex items-center gap-1"
           >
             <ChevronRight size={14} className="rotate-180" /> Back to Blog
-          </button>
+          </a>
           <div className="flex items-center gap-2 mb-4">
             <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
               {selectedPost.category}
@@ -3384,12 +3432,13 @@ export default function App() {
             >
               Audit
             </button>
-            <button
-              onClick={() => setPage(PAGES.BLOG)}
+            <a
+              href="/blog"
+              onClick={(e) => followLink(e, () => setPage(PAGES.BLOG))}
               className="hover:text-white transition-colors"
             >
               Blog
-            </button>
+            </a>
             <button
               onClick={() => setPage(PAGES.PRICING)}
               className="hover:text-white transition-colors"

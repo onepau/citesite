@@ -73,7 +73,7 @@ URL: https://citesite.net/?page=blog
 
 ### What Is Generative Engine Optimisation (GEO)?
 
-URL: https://citesite.net/?post=what-is-geo
+URL: https://citesite.net/blog/what-is-geo
 Category: GEO Fundamentals
 Published: 2026-04-28
 Read time: 8 min
@@ -96,7 +96,7 @@ A proper GEO audit examines how well your site communicates with AI systems — 
 
 ### The Importance of Having an llms.txt File
 
-URL: https://citesite.net/?post=the-importance-of-having-an-llms-txt-file
+URL: https://citesite.net/blog/the-importance-of-having-an-llms-txt-file
 Category: GEO Fundamentals
 Published: 2026-05-11
 Read time: 5 min
@@ -123,7 +123,7 @@ That's why forward-thinking brands are beginning to audit their sites specifical
 
 ### From SEO to GEO: Why JSON-LD Is the Hidden Layer Behind AI Visibility
 
-URL: https://citesite.net/?post=from-seo-to-geo-why-json-ld-is-the-hidden-layer-behind-ai-visibility
+URL: https://citesite.net/blog/from-seo-to-geo-why-json-ld-is-the-hidden-layer-behind-ai-visibility
 Category: Structured Data
 Published: 2026-05-18
 Read time: 5 min
@@ -151,7 +151,7 @@ The technical setup itself is relatively straightforward. The real value lies in
 
 ### E-E-A-T: The Credibility Layer
 
-URL: https://citesite.net/?post=e-e-a-t-the-credibility-layer
+URL: https://citesite.net/blog/e-e-a-t-the-credibility-layer
 Category: GEO Fundamentals
 Published: 2026-05-20
 Read time: 5 min

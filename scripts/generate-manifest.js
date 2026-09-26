@@ -153,7 +153,9 @@ function extractSchemaAndCleanBody(body) {
     // [INTERNAL LINK: /path "anchor text"] → anchor text
     .replace(/\[INTERNAL LINK:\s*[^\s\]]+\s+"([^"]+)"\]/g, "$1")
     // [EXTERNAL LINK: description] → remove silently
-    .replace(/\s*\[EXTERNAL LINK:[^\]]*\]/g, "");
+    .replace(/\s*\[EXTERNAL LINK:[^\]]*\]/g, "")
+    // Legacy post links (/?post=<slug>, with or without host) → /blog/<slug>
+    .replace(/(?:https:\/\/citesite\.net)?\/\?post=([\w-]+)/g, "/blog/$1");
 
   return { schema: schema && normaliseSchema(schema), cleanBody: cleaned };
 }
@@ -230,8 +232,9 @@ const urls = [
   { loc: `${SITE}/` },
   { loc: `${SITE}/about` },
   { loc: `${SITE}/faq` },
+  { loc: `${SITE}/blog`, lastmod: posts[0]?.date?.slice(0, 10) || null },
   ...posts.map((p) => ({
-    loc: `${SITE}/?post=${p.slug}`,
+    loc: `${SITE}/blog/${p.slug}`,
     lastmod: p.date ? p.date.slice(0, 10) : null,
   })),
 ];

@@ -17,7 +17,7 @@ _For twenty-five years, the fight in search was to reach the top of the page. Fo
 
 Google is widening a test of **auto-expanding AI Overviews**. For some queries, the full AI-generated answer now loads immediately instead of a short summary behind a "Show more" button, pushing traditional results further down the page. Google says expansion happens "where our systems determine it's most useful", but hasn't said which queries trigger it or how often ([9to5Google](https://9to5google.com/2026/08/31/google-search-ai-overviews-bigger/)). It's also bringing its generative-UI layer, which builds custom visual and interactive answers, from AI Mode into AI Overviews ([Harri Digital](https://www.harridigital.co.uk/blog/google-september-2026-update-ai-overviews-expansion)).
 
-This is the sharpest version yet of the [zero-click search](/?post=article-what-is-zero-click-search) problem. It's worth looking at what the data says, and at what kinds of content still earn a visit when the answer takes up the whole screen.
+This is the sharpest version yet of the [zero-click search](/blog/article-what-is-zero-click-search) problem. It's worth looking at what the data says, and at what kinds of content still earn a visit when the answer takes up the whole screen.
 
 ## The numbers behind the squeeze
 
@@ -62,7 +62,7 @@ If you report organic performance on clicks and sessions alone, auto-expanding O
 - **Use Search Console's generative-AI reports.** They now cover AI Overviews, AI Mode and AI in Discover worldwide ([Search Engine Roundtable](https://www.seroundtable.com/sept-2026-google-webmaster-report-41979.html)). Track impressions in AI features separately from classic results.
 - **Track citation, not just rank.** Ahrefs' monthly list of the [50 most-cited websites in AI Overviews](https://ahrefs.com/blog/most-cited-domains-ai-overviews/) is a useful benchmark for which domains Google favours in your category.
 - **Tie visibility to outcomes.** Vendors are starting to connect AI share of voice to conversions: Semrush published a walkthrough in September for combining AI citation and sentiment data with GA4 conversion metrics ([Semrush](https://www.semrush.com/blog/how-to-measure-ai-share-of-voice/)).
-- **Expect volatility.** AI features change weekly. Before you react to a drop, run through our [verification checklist](/?post=your-ai-visibility-can-vanish-overnight).
+- **Expect volatility.** AI features change weekly. Before you react to a drop, run through our [verification checklist](/blog/your-ai-visibility-can-vanish-overnight).
 
 ## What publishers are doing about it
 

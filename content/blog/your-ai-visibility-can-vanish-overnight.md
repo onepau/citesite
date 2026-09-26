@@ -42,7 +42,7 @@ From 12 to 13 August, Search Console's generative-AI performance report showed a
 These aren't flukes. They're the normal behaviour of systems that choose sources on the fly:
 
 - **Every assistant cites a different web.** Ahrefs' study of 17 million citations across seven AI platforms found that only 7 of the 50 most-mentioned domains appeared across Google AI Overviews, ChatGPT _and_ Perplexity. Roughly 86% of cited sources were unique to a single assistant ([Ahrefs](https://ahrefs.com/blog/do-ai-assistants-prefer-to-cite-fresh-content/)).
-- **Even one assistant cites differently depending on how hard it's thinking.** In ChatGPT, quick-answer and high-reasoning modes shared just 25.6% of cited domains, as we covered in [Thinking, fast and cited](/?post=thinking-fast-and-cited-what-chatgpts-reasoning-mode-means-for-ai-citations-and-geo).
+- **Even one assistant cites differently depending on how hard it's thinking.** In ChatGPT, quick-answer and high-reasoning modes shared just 25.6% of cited domains, as we covered in [Thinking, fast and cited](/blog/thinking-fast-and-cited-what-chatgpts-reasoning-mode-means-for-ai-citations-and-geo).
 - **Models change constantly.** Google changed the model behind AI Overviews and AI Mode at least three times between July and September. OpenAI shipped GPT-5.6 in July, made new versions of it the defaults in August and moved ChatGPT to GPT-6 Astra in September.
 
 A strategy built on one number from one platform is built on sand.

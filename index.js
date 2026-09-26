@@ -14,8 +14,10 @@ async function fetchManifest(env, request) {
   return _manifest;
 }
 
+const postUrlFor = (slug) => `${SITE}/blog/${slug}`;
+
 function buildArticleSchema(post) {
-  const postUrl = `${SITE}/?post=${post.slug}`;
+  const postUrl = postUrlFor(post.slug);
   const { extraNodes = [], ...extra } = post.schema || {};
   return {
     "@context": "https://schema.org",
@@ -48,12 +50,17 @@ function buildArticleSchema(post) {
         "@type": "BreadcrumbList",
         itemListElement: [
           { "@type": "ListItem", position: 1, name: "Home", item: SITE },
-          { "@type": "ListItem", position: 2, name: "Blog", item: `${SITE}/` },
+          {
+            "@type": "ListItem",
+            position: 2,
+            name: "Blog",
+            item: `${SITE}/blog`,
+          },
           {
             "@type": "ListItem",
             position: 3,
             name: post.title,
-            item: `${SITE}/?post=${post.slug}`,
+            item: postUrl,
           },
         ],
       },
@@ -75,6 +82,8 @@ function safeJSON(obj) {
 }
 
 // --- Route metadata ---
+
+const NAV = `<header><nav><a href="/">CiteSite</a><a href="/blog">Blog</a><a href="/about">About</a><a href="/faq">FAQ</a></nav></header>`;
 
 const HOME_META = {
   title: "CiteSite — SEO & GEO audit for the AI search era",
@@ -111,7 +120,7 @@ const HOME_META = {
 };
 
 const HOME_BODY = `
-<header><nav><a href="/">CiteSite</a><a href="/about">About</a><a href="/faq">FAQ</a></nav></header>
+${NAV}
 <main>
 <h1>Free GEO, SEO and AIO audit for the AI search era</h1>
 <p>CiteSite analyses any website across six weighted dimensions and tells you how AI search systems — including Google AI Overviews, Perplexity and ChatGPT — are likely to discover, understand and cite it. The audit runs in seconds. No payment or subscription required.</p>
@@ -152,7 +161,7 @@ const ABOUT_META = {
 };
 
 const ABOUT_BODY = `
-<header><nav><a href="/">CiteSite</a><a href="/about">About</a><a href="/faq">FAQ</a></nav></header>
+${NAV}
 <main>
 <h1>About CiteSite</h1>
 <p>CiteSite is a free GEO, SEO and AIO audit tool — no signup or subscription required — that analyses any URL across six weighted dimensions for AI search discoverability. The audit evaluates structured data, content quality, E-E-A-T signals, entity coherence, technical accessibility and metadata quality to determine how AI search systems are likely to discover, understand and cite the page.</p>
@@ -241,7 +250,7 @@ const FAQ_META = {
 };
 
 const FAQ_BODY = `
-<header><nav><a href="/">CiteSite</a><a href="/about">About</a><a href="/faq">FAQ</a></nav></header>
+${NAV}
 <main>
 <h1>Frequently asked questions</h1>
 <section><h2>What is a GEO audit?</h2><p>A GEO (Generative Engine Optimisation) audit analyses how well a website is structured to be discovered, understood and cited by AI-powered search systems such as Google AI Overviews, Perplexity and ChatGPT. It evaluates dimensions including structured data, content clarity, E-E-A-T signals, entity coherence and crawler accessibility — the factors that determine whether an AI system treats a page as a trustworthy source.</p></section>
@@ -309,6 +318,64 @@ function injectMeta(shell, meta, bodyHtml, includeBody) {
   }
 
   return rewriter.transform(shell);
+}
+
+// --- Blog pages ---
+
+const BLOG_FOOTER = `<footer><p><a href="/">Run an audit</a> · <a href="/blog">Blog</a> · <a href="/about">About CiteSite</a> · <a href="/faq">FAQ</a></p></footer>`;
+
+function postListHtml(posts) {
+  return `<ul>${posts
+    .map(
+      (p) =>
+        `<li><a href="/blog/${ea(p.slug)}">${ea(p.title)}</a>` +
+        (p.date
+          ? ` <time datetime="${ea(p.date)}">${ea(p.date.slice(0, 10))}</time>`
+          : "") +
+        (p.excerpt ? `<p>${ea(p.excerpt)}</p>` : "") +
+        `</li>`,
+    )
+    .join("")}</ul>`;
+}
+
+function blogIndexMeta(posts) {
+  const blogUrl = `${SITE}/blog`;
+  return {
+    title: "Blog — SEO, GEO and AI search guides | CiteSite",
+    description:
+      "Guides, research and platform updates on SEO, generative engine optimisation (GEO) and AI search visibility from CiteSite.",
+    canonical: blogUrl,
+    schemas: [
+      {
+        "@context": "https://schema.org",
+        "@type": "Blog",
+        "@id": `${SITE}/#blog`,
+        name: "CiteSite Blog",
+        url: blogUrl,
+        publisher: { "@id": `${SITE}/#organization` },
+        blogPost: posts.map((p) => ({
+          "@type": "BlogPosting",
+          headline: p.title,
+          url: postUrlFor(p.slug),
+          datePublished: p.date,
+        })),
+      },
+    ],
+  };
+}
+
+function blogIndexBody(posts) {
+  return (
+    `${NAV}<main><h1>CiteSite blog</h1>` +
+    `<p>Guides, research and platform updates on SEO, generative engine optimisation (GEO) and AI search visibility.</p>` +
+    `${postListHtml(posts)}</main>${BLOG_FOOTER}`
+  );
+}
+
+// Serve the SPA shell with a real 404 status (the app renders its own view)
+function notFound(shell) {
+  const headers = new Headers(shell.headers);
+  return new Response(shell.body, { status: 404, headers });
 }
 
 const CSP = [
@@ -380,16 +447,37 @@ async function handleRequest(request, env) {
     new Request(new URL("/", request.url), request),
   );
 
-  const postSlug = url.searchParams.get("post");
   const includeBody = isCrawler(request);
 
-  // Blog post: /?post=<slug>
-  if (postSlug) {
+  // Legacy post URLs (/?post=<slug>) → permanent redirect to /blog/<slug>
+  const legacySlug = url.searchParams.get("post");
+  if (legacySlug) {
     const posts = await fetchManifest(env, request);
-    const post = posts.find((p) => p.slug === postSlug);
-    if (!post) return shell;
+    if (posts.some((p) => p.slug === legacySlug)) {
+      return Response.redirect(postUrlFor(legacySlug), 301);
+    }
+    return notFound(shell);
+  }
 
-    const postUrl = `${SITE}/?post=${post.slug}`;
+  // Blog index: /blog
+  if (pathname === "/blog") {
+    const posts = await fetchManifest(env, request);
+    return injectMeta(
+      shell,
+      blogIndexMeta(posts),
+      blogIndexBody(posts),
+      includeBody,
+    );
+  }
+
+  // Blog post: /blog/<slug>
+  const postMatch = pathname.match(/^\/blog\/([^/]+)$/);
+  if (postMatch) {
+    const posts = await fetchManifest(env, request);
+    const post = posts.find((p) => p.slug === postMatch[1]);
+    if (!post) return notFound(shell);
+
+    const postUrl = postUrlFor(post.slug);
     const title = `${post.title} — CiteSite`;
 
     const rewriter = new HTMLRewriter()
@@ -406,7 +494,8 @@ async function handleRequest(request, env) {
       .on("head", {
         element(el) {
           el.append(
-            `<script type="application/ld+json" data-schema="dynamic">${safeJSON(buildArticleSchema(post))}<\/script>` +
+            `<link rel="canonical" href="${ea(postUrl)}" />` +
+              `<script type="application/ld+json" data-schema="dynamic">${safeJSON(buildArticleSchema(post))}<\/script>` +
               `<meta property="og:type" content="article" />` +
               `<meta property="og:title" content="${ea(title)}" />` +
               `<meta property="og:description" content="${ea(post.excerpt)}" />` +
@@ -420,11 +509,18 @@ async function handleRequest(request, env) {
       });
 
     if (includeBody) {
+      const others = posts.filter((p) => p.slug !== post.slug).slice(0, 5);
       rewriter.on("#root", {
         element(el) {
-          el.setInnerContent(`<article>${post.html}</article>`, {
-            html: true,
-          });
+          el.setInnerContent(
+            `${NAV}<main><p><a href="/blog">← All posts</a></p>` +
+              `<article>${/<h1[\s>]/i.test(post.html) ? "" : `<h1>${ea(post.title)}</h1>`}` +
+              `<p><time datetime="${ea(post.date)}">${ea(post.date.slice(0, 10))}</time> · ${ea(post.category)}</p>` +
+              `${post.html}</article>` +
+              `<aside><h2>More from the CiteSite blog</h2>${postListHtml(others)}</aside></main>` +
+              BLOG_FOOTER,
+            { html: true },
+          );
         },
       });
     }
@@ -432,8 +528,18 @@ async function handleRequest(request, env) {
     return rewriter.transform(shell);
   }
 
-  if (pathname === "/")
-    return injectMeta(shell, HOME_META, HOME_BODY, includeBody);
+  if (pathname === "/") {
+    const posts = await fetchManifest(env, request);
+    const latest =
+      `<section><h2>Latest from the blog</h2>${postListHtml(posts.slice(0, 5))}` +
+      `<p><a href="/blog">All posts</a></p></section>`;
+    return injectMeta(
+      shell,
+      HOME_META,
+      HOME_BODY.replace("</main>", `${latest}</main>`),
+      includeBody,
+    );
+  }
   if (pathname === "/about")
     return injectMeta(shell, ABOUT_META, ABOUT_BODY, includeBody);
   if (pathname === "/faq")
