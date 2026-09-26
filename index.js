@@ -16,6 +16,7 @@ async function fetchManifest(env, request) {
 
 function buildArticleSchema(post) {
   const postUrl = `${SITE}/?post=${post.slug}`;
+  const { extraNodes = [], ...extra } = post.schema || {};
   return {
     "@context": "https://schema.org",
     "@graph": [
@@ -32,6 +33,7 @@ function buildArticleSchema(post) {
           name: "CiteSite",
           url: SITE,
         },
+        ...extra,
         publisher: {
           "@type": "Organization",
           "@id": `${SITE}/#organization`,
@@ -55,6 +57,7 @@ function buildArticleSchema(post) {
           },
         ],
       },
+      ...extraNodes,
     ],
   };
 }

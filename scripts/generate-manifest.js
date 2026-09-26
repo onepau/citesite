@@ -148,12 +148,42 @@ function extractSchemaAndCleanBody(body) {
 
   // Resolve content-tool link markers to plain text / nothing
   const cleaned = trimmed
+    // **IMAGE PROMPT ... **END IMAGE PROMPT** editorial block → remove
+    .replace(/\*\*IMAGE PROMPT\b[\s\S]*?\*\*END IMAGE PROMPT\*\*\s*/g, "")
     // [INTERNAL LINK: /path "anchor text"] → anchor text
     .replace(/\[INTERNAL LINK:\s*[^\s\]]+\s+"([^"]+)"\]/g, "$1")
     // [EXTERNAL LINK: description] → remove silently
     .replace(/\s*\[EXTERNAL LINK:[^\]]*\]/g, "");
 
-  return { schema, cleanBody: cleaned };
+  return { schema: schema && normaliseSchema(schema), cleanBody: cleaned };
+}
+
+// Reduce a post's JSON-LD (a single object or an @graph) to the Article
+// properties the site merges into its own Article node, plus any other
+// nodes (e.g. FAQPage) to append to the page's @graph.
+const ARTICLE_PROPS = [
+  "about",
+  "mentions",
+  "citation",
+  "keywords",
+  "author",
+  "dateModified",
+];
+
+function normaliseSchema(schema) {
+  const nodes = Array.isArray(schema["@graph"]) ? schema["@graph"] : [schema];
+  const article =
+    nodes.find((n) => /Article|BlogPosting/.test(String(n["@type"]))) ||
+    (nodes.length === 1 ? nodes[0] : {});
+  const out = {};
+  for (const key of ARTICLE_PROPS) {
+    if (article[key] !== undefined) out[key] = article[key];
+  }
+  const extraNodes = nodes
+    .filter((n) => n !== article && n["@type"])
+    .map(({ "@context": _ctx, ...n }) => n);
+  if (extraNodes.length) out.extraNodes = extraNodes;
+  return out;
 }
 
 /* ───────────────────────────────────────────────────────────────────

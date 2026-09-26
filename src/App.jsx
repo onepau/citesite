@@ -1742,10 +1742,11 @@ export default function App() {
               dateModified: postSchema.dateModified,
             }),
             articleSection: selectedPost.category,
-            keywords: selectedPost.category,
+            keywords: postSchema?.keywords || selectedPost.category,
             ...(postSchema?.about && { about: postSchema.about }),
             ...(postSchema?.mentions && { mentions: postSchema.mentions }),
-            author: {
+            ...(postSchema?.citation && { citation: postSchema.citation }),
+            author: postSchema?.author || {
               "@type": "Organization",
               "@id": `${SITE_URL}/#organization`,
               name: "CiteSite",
@@ -1790,6 +1791,7 @@ export default function App() {
               },
             ],
           },
+          ...(postSchema?.extraNodes || []),
         ],
       };
       getOrCreateTag().textContent = JSON.stringify(schema);
