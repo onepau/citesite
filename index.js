@@ -310,11 +310,11 @@ function injectMeta(shell, meta, bodyHtml, includeBody) {
 
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://*.googletagmanager.com https://*.google-analytics.com",
+  "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://*.googletagmanager.com https://*.google-analytics.com https://www.clarity.ms https://scripts.clarity.ms",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self' data:",
   "img-src 'self' data: blob: https:",
-  "connect-src 'self' https://api.citesite.net https://*.google-analytics.com https://*.googletagmanager.com https://stats.g.doubleclick.net",
+  "connect-src 'self' https://api.citesite.net https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com https://stats.g.doubleclick.net https://*.clarity.ms",
   "worker-src 'self' blob:",
   "frame-src https://www.googletagmanager.com",
   "frame-ancestors 'none'",
