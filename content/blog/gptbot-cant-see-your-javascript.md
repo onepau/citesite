@@ -1,8 +1,10 @@
 ---
 title: "GPTBot can't see your JavaScript: the rendering blind spot in AI search"
-date: 2026-09-26T10:00:00.000+02:00
+date: 2026-09-25T10:00:00.000+02:00
 category: Technical Guide
-excerpt: ChatGPT's, Claude's and Perplexity's crawlers still read only the initial HTML of a page. If your content appears only after JavaScript runs, they may never see it. Here's how to check, and how to fix it.
+excerpt: ChatGPT's, Claude's and Perplexity's crawlers still read only the
+  initial HTML of a page. If your content appears only after JavaScript runs,
+  they may never see it. Here's how to check, and how to fix it.
 readTime: 5 min
 featured: false
 ---
