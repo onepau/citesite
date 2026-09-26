@@ -70,69 +70,74 @@ Kahneman would have had a field day with this one. It turns out your brand doesn
 
 ![A graphic illustrating the differences between fast and slow thinking](/images/blog/fast_and_slow_chatgpt_sources_differ_by_model_effort.png "LLM models are likely to cite different sources depending on the reasoning effort that has been set by the user")
 
-```
-<script type="application/ld+json">
+---
+## SEO metadata
+
+_Editorial notes and structured data below are not shown on the page. The JSON-LD in the schema block is added to the page's head automatically._
+
+## Schema markup
+
+```json
 {
-  "@context": "https://schema.org",
-  "@graph": [
-    {
-      "@type": "Article",
-      "headline": "Thinking, Fast and Cited: what ChatGPT's reasoning mode means for AI citations and GEO",
-      "description": "ChatGPT's high-reasoning mode cites an almost entirely different set of sources to its quick answers. What the shift means for AI citations and GEO.",
-      "articleBody": "Daniel Kahneman spent a career proving that human beings think in two speeds. System 1 is fast, instinctive and frequently wrong. System 2 is slow, effortful and usually right, if you can be bothered to summon it. New research shows ChatGPT now exhibits the same split personality, citing almost entirely different sources depending on whether it is running in quick-answer or high-reasoning mode.",
-      "author": {
-        "@type": "Person",
-        "name": "Paul O'Neil",
-        "jobTitle": "GEO strategist",
-        "worksFor": {
-          "@type": "CiteSite",
-          "name": "citesite.net"
-        }
-      },
-      "datePublished": "2026-07-08",
-      "keywords": "AI citations, generative engine optimization, GEO, LLM citations, ChatGPT reasoning mode, AI search visibility, citation frequency",
-      "articleSection": "GEO / AI search",
-      "publisher": {
-        "@type": "Organization",
-        "name": "citesite.net"
-      },
-      "mainEntityOfPage": {
-        "@type": "WebPage",
-        "@id": "https://citesite.net/blog/chatgpt-reasoning-mode-ai-citations-geo"
-      }
-    },
-    {
-      "@type": "FAQPage",
-      "mainEntity": [
-        {
-          "@type": "Question",
-          "name": "What is generative engine optimization (GEO)?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Generative engine optimization is the practice of structuring content and brand presence so that AI systems such as ChatGPT, Google AI Overviews, Perplexity and Claude cite, recommend or mention it in generated answers, rather than optimising purely for a ranked list of links."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "Why does ChatGPT cite different sources in reasoning mode?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "High-reasoning mode runs substantially more web searches and sub-queries before answering, surfacing a wider pool of sources and shifting the model's preference toward primary, authoritative and documentation-style content over forum and community content."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "How can brands track AI citations properly?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "By monitoring citation frequency and source overlap across both quick-answer and high-reasoning modes, across multiple AI platforms, since data shows the overlap between modes on the same platform can be as low as 25.6%."
-          }
-        }
-      ]
-    }
-  ]
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Article",
+      "headline": "Thinking, Fast and Cited: what ChatGPT's reasoning mode means for AI citations and GEO",
+      "description": "ChatGPT's high-reasoning mode cites an almost entirely different set of sources to its quick answers. What the shift means for AI citations and GEO.",
+      "articleBody": "Daniel Kahneman spent a career proving that human beings think in two speeds. System 1 is fast, instinctive and frequently wrong. System 2 is slow, effortful and usually right, if you can be bothered to summon it. New research shows ChatGPT now exhibits the same split personality, citing almost entirely different sources depending on whether it is running in quick-answer or high-reasoning mode.",
+      "author": {
+        "@type": "Person",
+        "name": "Paul O'Neil",
+        "jobTitle": "GEO strategist",
+        "worksFor": {
+          "@type": "Organization",
+          "@id": "https://citesite.net/#organization",
+          "name": "CiteSite"
+        }
+      },
+      "datePublished": "2026-07-08",
+      "keywords": "AI citations, generative engine optimization, GEO, LLM citations, ChatGPT reasoning mode, AI search visibility, citation frequency",
+      "articleSection": "GEO / AI search",
+      "publisher": {
+        "@type": "Organization",
+        "name": "citesite.net"
+      },
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://citesite.net/blog/thinking-fast-and-cited-what-chatgpts-reasoning-mode-means-for-ai-citations-and-geo",
+        "url": "https://citesite.net/blog/thinking-fast-and-cited-what-chatgpts-reasoning-mode-means-for-ai-citations-and-geo"
+      }
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "What is generative engine optimization (GEO)?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Generative engine optimization is the practice of structuring content and brand presence so that AI systems such as ChatGPT, Google AI Overviews, Perplexity and Claude cite, recommend or mention it in generated answers, rather than optimising purely for a ranked list of links."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why does ChatGPT cite different sources in reasoning mode?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "High-reasoning mode runs substantially more web searches and sub-queries before answering, surfacing a wider pool of sources and shifting the model's preference toward primary, authoritative and documentation-style content over forum and community content."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How can brands track AI citations properly?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "By monitoring citation frequency and source overlap across both quick-answer and high-reasoning modes, across multiple AI platforms, since data shows the overlap between modes on the same platform can be as low as 25.6%."
+          }
+        }
+      ]
+    }
+  ]
 }
-</script>
-
-
 ```

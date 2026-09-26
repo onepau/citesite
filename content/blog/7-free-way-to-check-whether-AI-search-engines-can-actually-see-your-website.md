@@ -53,8 +53,14 @@ If you only have ten minutes, do two things: view source on your homepage to che
 
 *CiteSite is a free AI visibility audit tool. Run your site at [citesite.net](https://citesite.net).*
 
-```
-<script type="application/ld+json">
+---
+## SEO metadata
+
+_Editorial notes and structured data below are not shown on the page. The JSON-LD in the schema block is added to the page's head automatically._
+
+## Schema markup
+
+```json
 {
   "@context": "https://schema.org",
   "@type": "Article",
@@ -67,6 +73,7 @@ If you only have ten minutes, do two things: view source on your homepage to che
     "jobTitle": "GEO Specialist",
     "worksFor": {
       "@type": "Organization",
+      "@id": "https://citesite.net/#organization",
       "name": "CiteSite"
     }
   },
@@ -74,12 +81,13 @@ If you only have ten minutes, do two things: view source on your homepage to che
   "articleSection": "AI Search",
   "publisher": {
     "@type": "Organization",
-    "name": "CiteSite"
+    "name": "CiteSite",
+    "@id": "https://citesite.net/#organization"
   },
   "mainEntityOfPage": {
     "@type": "WebPage",
-    "@id": "https://citesite.net/blog/7-free-ways-to-check-ai-visibility"
+    "@id": "https://citesite.net/blog/7-free-way-to-check-whether-AI-search-engines-can-actually-see-your-website",
+    "url": "https://citesite.net/blog/7-free-way-to-check-whether-AI-search-engines-can-actually-see-your-website"
   }
 }
-</script>
 ```
