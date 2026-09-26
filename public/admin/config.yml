@@ -2,7 +2,7 @@ backend:
   name: github
   repo: onepau/citesite
   branch: main
-  base_url: https://citesite-oauth.onepau.workers.dev
+  base_url: https://auth.citesite.net
 
 media_folder: "public/images/blog"
 public_folder: "/images/blog"
@@ -28,6 +28,16 @@ collections:
           - "Algorithm Updates"
           - "Tools & Resources"
       - { label: "Excerpt", name: "excerpt", widget: "text" }
-      - { label: "Read Time", name: "readTime", widget: "string", default: "5 min" }
-      - { label: "Featured", name: "featured", widget: "boolean", default: false }
+      - {
+          label: "Read Time",
+          name: "readTime",
+          widget: "string",
+          default: "5 min",
+        }
+      - {
+          label: "Featured",
+          name: "featured",
+          widget: "boolean",
+          default: false,
+        }
       - { label: "Body", name: "body", widget: "markdown" }
