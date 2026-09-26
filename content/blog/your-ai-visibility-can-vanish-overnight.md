@@ -1,8 +1,10 @@
 ---
-title: "Your AI visibility can vanish overnight, and often it isn't your fault"
-date: 2026-09-26T11:00:00.000+02:00
+title: Your AI visibility can vanish overnight, and often it isn't your fault
+date: 2026-09-22T11:00:00.000+02:00
 category: Algorithm Updates
-excerpt: Reddit lost 86% of its ChatGPT citation share in a week, Google's AI Mode stopped citing sources for days and Search Console showed a drop that never happened. How to tell a real fall in AI citations from platform noise.
+excerpt: Reddit lost 86% of its ChatGPT citation share in a week, Google's AI
+  Mode stopped citing sources for days and Search Console showed a drop that
+  never happened. How to tell a real fall in AI citations from platform noise.
 readTime: 6 min
 featured: false
 ---
