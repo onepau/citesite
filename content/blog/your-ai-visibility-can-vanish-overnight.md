@@ -57,7 +57,7 @@ Before you rewrite anything, work through these questions:
 4. **Has anyone else noticed?** Check Search Engine Roundtable, Search Engine Land and the usual social channels. Platform bugs usually surface within 24 to 48 hours.
 5. **Did a model or product change just ship?** Model swaps are the single most common cause of sudden citation reshuffles.
 6. **Did business outcomes change?** If AI-referred sessions, leads and conversions held steady, a visibility metric that dropped may matter less than it looks.
-7. **Did you change anything?** Only once the first six questions point back at you should you look at your own recent deploys, robots.txt, CDN rules or content changes. When the cause _is_ on your side, it's usually something technical. See _Is your site blocking AI search without knowing it?_ (coming soon)
+7. **Did you change anything?** Only once the first six questions point back at you should you look at your own recent deploys, robots.txt, CDN rules or content changes. When the cause _is_ on your side, it's usually something technical. See [Is your site blocking AI search without knowing it?](/blog/is-your-site-blocking-ai-search-without-knowing-it)
 
 ## Measure AI visibility like weather, not like rankings
 

@@ -43,7 +43,7 @@ This is our reading of the data rather than a formal study, but the pattern is c
 **Content that still gives people a reason to click:**
 
 - **Tools and calculators.** An AI can describe a mortgage calculator; it can't be yours.
-- **Original data and research.** People click to check the source, especially for figures they intend to reuse. Being the primary source is also what gets you cited in the first place, as we explain in _What the research actually says about GEO_ (coming soon).
+- **Original data and research.** People click to check the source, especially for figures they intend to reuse. Being the primary source is also what gets you cited in the first place, as we explain in [What the research actually says about GEO](/blog/what-the-research-actually-says-about-geo).
 - **First-hand experience, reviews and opinion.** The summary tells you what people think; the click tells you what _this_ person found.
 - **Transactions.** Buying, booking and signing up still happen on your site.
 - **Depth for high-stakes decisions.** Detailed comparisons, case studies and documentation that someone needs to read in full before committing.

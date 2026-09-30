@@ -46,7 +46,7 @@ There's no single right answer. The best fix depends on your stack and your team
 - **Pre-rendering for crawlers (dynamic rendering).** The server detects crawler user agents and sends them a pre-rendered HTML version, while browsers get the JavaScript app. It's a pragmatic workaround rather than a long-term architecture, and the content must match what users see, or you're into cloaking territory. For transparency: this blog is a single-page React app, and it's exactly how we serve our own posts to AI crawlers.
 - **Move the critical content into the HTML.** If a full re-architecture isn't on the cards, make sure the essentials (headings, the main body copy, key facts, prices and JSON-LD) are in the initial HTML, even if the rest of the experience is client-rendered.
 
-Once your content is readable, make sure crawlers are allowed to fetch it in the first place: robots.txt, your CDN and Google's settings now all have a say, as we explain in _Is your site blocking AI search without knowing it?_ (coming soon). For why server-rendered structured data matters, see [From SEO to GEO: why JSON-LD is the hidden layer behind AI visibility](/blog/from-seo-to-geo-why-json-ld-is-the-hidden-layer-behind-ai-visibility).
+Once your content is readable, make sure crawlers are allowed to fetch it in the first place: robots.txt, your CDN and Google's settings now all have a say, as we explain in [Is your site blocking AI search without knowing it?](/blog/is-your-site-blocking-ai-search-without-knowing-it). For why server-rendered structured data matters, see [From SEO to GEO: why JSON-LD is the hidden layer behind AI visibility](/blog/from-seo-to-geo-why-json-ld-is-the-hidden-layer-behind-ai-visibility).
 
 ## Frequently asked questions
 
