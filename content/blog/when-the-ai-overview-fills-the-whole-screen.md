@@ -201,13 +201,3 @@ Google has spent a quarter of a century sending people somewhere else. Auto-expa
 *Want to know whether your pages are built to be cited, and worth clicking? [Run a free CiteSite audit](/).*
 
 *Sources: [9to5Google: Google is making AI Overviews even bigger on some search queries](https://9to5google.com/2026/08/31/google-search-ai-overviews-bigger/); [Harri Digital: Google September 2026 update, AI Overviews expansion explained](https://www.harridigital.co.uk/blog/google-september-2026-update-ai-overviews-expansion); [BrightEdge weekly AI search insights](https://www.brightedge.com/resources/weekly-ai-search-insights); [Digital Applied: Similarweb AI Overviews at 43% adoption](https://www.digitalapplied.com/blog/similarweb-ai-overviews-43-percent-adoption); [thestacc: Google AI Overviews statistics](https://thestacc.com/blog/google-ai-overview-statistics/); [Search Engine Land: Shopify AI referrals up, organic search still leads](https://searchengineland.com/shopify-ai-referrals-up-organic-search-leads-traffic-484962); [Search Engine Land: mastering generative engine optimization in 2026 (Previsible data)](https://searchengineland.com/mastering-generative-engine-optimization-in-2026-full-guide-469142); [Search Engine Roundtable: September 2026 Google webmaster report](https://www.seroundtable.com/sept-2026-google-webmaster-report-41979.html); [Ahrefs: the 50 most-cited websites in Google AI Overviews](https://ahrefs.com/blog/most-cited-domains-ai-overviews/); [Semrush: how to measure AI share of voice](https://www.semrush.com/blog/how-to-measure-ai-share-of-voice/); [Search Engine Land: USA Today and search pressure](https://searchengineland.com/usa-today-search-pressure-487003); [Digiday: USA Today Co. reformatting content for AI licensing deals](https://digiday.com/media/usa-today-co-is-reformatting-content-to-attract-more-ai-licensing-deals/).*
-
-- - -
-
-## SEO metadata
-
-* **Primary keyword:** auto-expanding AI Overviews
-* **Secondary keywords:** AI Overviews click-through rate, zero-click search 2026, content that gets clicks, AI Overviews below the fold, Search Console AI reports
-* **Meta description:** Google is testing AI Overviews that load fully expanded, pushing organic results below the fold. Which content still earns a click, and how to measure it.
-
-## Schema markup
