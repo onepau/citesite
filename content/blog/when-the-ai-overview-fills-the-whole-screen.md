@@ -9,125 +9,8 @@ excerpt: Google is testing AI Overviews that load fully expanded, and the
 readTime: 6 min
 featured: false
 ---
-![](/images/blog/citesite-ai-overview.png)
+![A smartphone screen filled by a glowing AI answer panel, with search result link cards squeezed beneath it and one highlighted card being clicked](/images/blog/citesite-ai-overview.png "When the AI answer fills the screen, only some results still earn the click")
 
-````
-```json
-{
-  "@context": "https://schema.org",
-  "@graph": [
-    {
-      "@type": "Article",
-      "headline": "When the AI Overview fills the whole screen: auto-expanding answers and what still earns a click",
-      "description": "Google is testing AI Overviews that load fully expanded, and the average one is already taller than a screen. Which content still earns a click when the answer pushes every organic result below the fold?",
-      "datePublished": "2026-09-26",
-      "dateModified": "2026-09-26",
-      "keywords": "AI Overviews, auto-expanding AI Overviews, zero-click search, click-through rate, AI citations, Search Console, generative engine optimisation",
-      "author": {
-        "@type": "Person",
-        "name": "Paul O'Neil",
-        "jobTitle": "GEO strategist",
-        "worksFor": {
-          "@type": "Organization",
-          "@id": "https://citesite.net/#organization",
-          "name": "CiteSite"
-        }
-      },
-      "about": [
-        { "@type": "Thing", "name": "Google AI Overviews" },
-        { "@type": "Thing", "name": "Zero-click search" },
-        { "@type": "Thing", "name": "Click-through rate" }
-      ],
-      "mentions": [
-        {
-          "@type": "Organization",
-          "name": "Google",
-          "url": "https://www.google.com"
-        },
-        {
-          "@type": "Organization",
-          "name": "BrightEdge",
-          "url": "https://www.brightedge.com"
-        },
-        {
-          "@type": "Organization",
-          "name": "Similarweb",
-          "url": "https://www.similarweb.com"
-        },
-        {
-          "@type": "Organization",
-          "name": "Seer Interactive",
-          "url": "https://www.seerinteractive.com"
-        },
-        {
-          "@type": "Organization",
-          "name": "Shopify",
-          "url": "https://www.shopify.com"
-        },
-        { "@type": "Organization", "name": "Previsible" },
-        {
-          "@type": "NewsMediaOrganization",
-          "name": "USA Today",
-          "url": "https://www.usatoday.com"
-        }
-      ],
-      "citation": [
-        "https://9to5google.com/2026/08/31/google-search-ai-overviews-bigger/",
-        "https://www.harridigital.co.uk/blog/google-september-2026-update-ai-overviews-expansion",
-        "https://www.brightedge.com/resources/weekly-ai-search-insights",
-        "https://www.digitalapplied.com/blog/similarweb-ai-overviews-43-percent-adoption",
-        "https://thestacc.com/blog/google-ai-overview-statistics/",
-        "https://searchengineland.com/shopify-ai-referrals-up-organic-search-leads-traffic-484962",
-        "https://searchengineland.com/mastering-generative-engine-optimization-in-2026-full-guide-469142",
-        "https://www.seroundtable.com/sept-2026-google-webmaster-report-41979.html",
-        "https://ahrefs.com/blog/most-cited-domains-ai-overviews/",
-        "https://www.semrush.com/blog/how-to-measure-ai-share-of-voice/",
-        "https://searchengineland.com/usa-today-search-pressure-487003",
-        "https://digiday.com/media/usa-today-co-is-reformatting-content-to-attract-more-ai-licensing-deals/"
-      ]
-    },
-    {
-      "@type": "FAQPage",
-      "mainEntity": [
-        {
-          "@type": "Question",
-          "name": "What are auto-expanding AI Overviews?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "It's a Google test in which, for some queries, the full AI Overview loads automatically instead of a short summary behind a Show more button, pushing organic results further down the page. Google hasn't disclosed which queries trigger it."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "How much do AI Overviews reduce clicks?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Seer Interactive data shows organic click-through rates falling 34–61% when an AI Overview is present, though pages cited in the Overview earn about 35% more clicks than uncited pages on the same results page."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "What content still gets clicks when AI Overviews appear?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Content an AI summary can't replace: tools and calculators, original data, first-hand reviews and experience, transactions, in-depth material for high-stakes decisions, and downloadable or ongoing resources."
-          }
-        },
-        {
-          "@type": "Question",
-          "name": "How should I measure performance when AI Overviews take most of the page?",
-          "acceptedAnswer": {
-            "@type": "Answer",
-            "text": "Track AI feature impressions in Search Console's generative-AI reports, monitor citation share rather than rank alone, and connect AI visibility to conversions rather than sessions."
-          }
-        }
-      ]
-    }
-  ]
-}
-```
-
-````
 
 *For twenty-five years, the fight in search was to reach the top of the page. For a growing share of queries, the top of the page is now all Google, and so is most of the rest.*
 
@@ -201,3 +84,139 @@ Google has spent a quarter of a century sending people somewhere else. Auto-expa
 *Want to know whether your pages are built to be cited, and worth clicking? [Run a free CiteSite audit](/).*
 
 *Sources: [9to5Google: Google is making AI Overviews even bigger on some search queries](https://9to5google.com/2026/08/31/google-search-ai-overviews-bigger/); [Harri Digital: Google September 2026 update, AI Overviews expansion explained](https://www.harridigital.co.uk/blog/google-september-2026-update-ai-overviews-expansion); [BrightEdge weekly AI search insights](https://www.brightedge.com/resources/weekly-ai-search-insights); [Digital Applied: Similarweb AI Overviews at 43% adoption](https://www.digitalapplied.com/blog/similarweb-ai-overviews-43-percent-adoption); [thestacc: Google AI Overviews statistics](https://thestacc.com/blog/google-ai-overview-statistics/); [Search Engine Land: Shopify AI referrals up, organic search still leads](https://searchengineland.com/shopify-ai-referrals-up-organic-search-leads-traffic-484962); [Search Engine Land: mastering generative engine optimization in 2026 (Previsible data)](https://searchengineland.com/mastering-generative-engine-optimization-in-2026-full-guide-469142); [Search Engine Roundtable: September 2026 Google webmaster report](https://www.seroundtable.com/sept-2026-google-webmaster-report-41979.html); [Ahrefs: the 50 most-cited websites in Google AI Overviews](https://ahrefs.com/blog/most-cited-domains-ai-overviews/); [Semrush: how to measure AI share of voice](https://www.semrush.com/blog/how-to-measure-ai-share-of-voice/); [Search Engine Land: USA Today and search pressure](https://searchengineland.com/usa-today-search-pressure-487003); [Digiday: USA Today Co. reformatting content for AI licensing deals](https://digiday.com/media/usa-today-co-is-reformatting-content-to-attract-more-ai-licensing-deals/).*
+
+---
+## SEO metadata
+
+- **Primary keyword:** auto-expanding AI Overviews
+- **Secondary keywords:** AI Overviews click-through rate, zero-click search 2026, content that gets clicks, AI Overviews below the fold, Search Console AI reports
+- **Meta description:** Google is testing AI Overviews that load fully expanded, pushing organic results below the fold. Which content still earns a click, and how to measure it.
+
+## Schema markup
+
+```json
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Article",
+      "headline": "When the AI Overview fills the whole screen: auto-expanding answers and what still earns a click",
+      "description": "Google is testing AI Overviews that load fully expanded, and the average one is already taller than a screen. Which content still earns a click when the answer pushes every organic result below the fold?",
+      "datePublished": "2026-09-26",
+      "dateModified": "2026-09-26",
+      "keywords": "AI Overviews, auto-expanding AI Overviews, zero-click search, click-through rate, AI citations, Search Console, generative engine optimisation",
+      "author": {
+        "@type": "Person",
+        "name": "Paul O'Neil",
+        "jobTitle": "GEO strategist",
+        "worksFor": {
+          "@type": "Organization",
+          "@id": "https://citesite.net/#organization",
+          "name": "CiteSite"
+        }
+      },
+      "about": [
+        {
+          "@type": "Thing",
+          "name": "Google AI Overviews"
+        },
+        {
+          "@type": "Thing",
+          "name": "Zero-click search"
+        },
+        {
+          "@type": "Thing",
+          "name": "Click-through rate"
+        }
+      ],
+      "mentions": [
+        {
+          "@type": "Organization",
+          "name": "Google",
+          "url": "https://www.google.com"
+        },
+        {
+          "@type": "Organization",
+          "name": "BrightEdge",
+          "url": "https://www.brightedge.com"
+        },
+        {
+          "@type": "Organization",
+          "name": "Similarweb",
+          "url": "https://www.similarweb.com"
+        },
+        {
+          "@type": "Organization",
+          "name": "Seer Interactive",
+          "url": "https://www.seerinteractive.com"
+        },
+        {
+          "@type": "Organization",
+          "name": "Shopify",
+          "url": "https://www.shopify.com"
+        },
+        {
+          "@type": "Organization",
+          "name": "Previsible"
+        },
+        {
+          "@type": "NewsMediaOrganization",
+          "name": "USA Today",
+          "url": "https://www.usatoday.com"
+        }
+      ],
+      "citation": [
+        "https://9to5google.com/2026/08/31/google-search-ai-overviews-bigger/",
+        "https://www.harridigital.co.uk/blog/google-september-2026-update-ai-overviews-expansion",
+        "https://www.brightedge.com/resources/weekly-ai-search-insights",
+        "https://www.digitalapplied.com/blog/similarweb-ai-overviews-43-percent-adoption",
+        "https://thestacc.com/blog/google-ai-overview-statistics/",
+        "https://searchengineland.com/shopify-ai-referrals-up-organic-search-leads-traffic-484962",
+        "https://searchengineland.com/mastering-generative-engine-optimization-in-2026-full-guide-469142",
+        "https://www.seroundtable.com/sept-2026-google-webmaster-report-41979.html",
+        "https://ahrefs.com/blog/most-cited-domains-ai-overviews/",
+        "https://www.semrush.com/blog/how-to-measure-ai-share-of-voice/",
+        "https://searchengineland.com/usa-today-search-pressure-487003",
+        "https://digiday.com/media/usa-today-co-is-reformatting-content-to-attract-more-ai-licensing-deals/"
+      ]
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "What are auto-expanding AI Overviews?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "It's a Google test in which, for some queries, the full AI Overview loads automatically instead of a short summary behind a Show more button, pushing organic results further down the page. Google hasn't disclosed which queries trigger it."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How much do AI Overviews reduce clicks?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Seer Interactive data shows organic click-through rates falling 34–61% when an AI Overview is present, though pages cited in the Overview earn about 35% more clicks than uncited pages on the same results page."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What content still gets clicks when AI Overviews appear?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Content an AI summary can't replace: tools and calculators, original data, first-hand reviews and experience, transactions, in-depth material for high-stakes decisions, and downloadable or ongoing resources."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How should I measure performance when AI Overviews take most of the page?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Track AI feature impressions in Search Console's generative-AI reports, monitor citation share rather than rank alone, and connect AI visibility to conversions rather than sessions."
+          }
+        }
+      ]
+    }
+  ]
+}
+```

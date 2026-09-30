@@ -144,7 +144,26 @@ function extractSchemaAndCleanBody(body) {
 
   // Strip editorial tail sections that must not appear in rendered HTML
   const editorialIdx = body.search(/\n---\s*\n## SEO metadata/);
-  const trimmed = editorialIdx > -1 ? body.slice(0, editorialIdx) : body;
+  let trimmed = editorialIdx > -1 ? body.slice(0, editorialIdx) : body;
+
+  // JSON-LD pasted anywhere else in the body (a code fence, possibly nested
+  // by the CMS editor, or a raw <script> tag) must never render as text: use
+  // it as the post's schema if there isn't one already, and remove it.
+  const takeJsonLd = (block, raw) => {
+    const data = parseJsonLd(raw);
+    if (!data) return block;
+    schema = schema || data;
+    return "";
+  };
+  trimmed = trimmed
+    .replace(
+      /^(`{3,}|~{3,})[^\n]*\n([\s\S]*?)\n\1[ \t]*$/gm,
+      (block, _f, raw) => takeJsonLd(block, raw),
+    )
+    .replace(
+      /<script type="application\/ld\+json">([\s\S]*?)<\/script>/g,
+      takeJsonLd,
+    );
 
   // Resolve content-tool link markers to plain text / nothing
   const cleaned = trimmed
@@ -158,6 +177,21 @@ function extractSchemaAndCleanBody(body) {
     .replace(/(?:https:\/\/citesite\.net)?\/\?post=([\w-]+)/g, "/blog/$1");
 
   return { schema: schema && normaliseSchema(schema), cleanBody: cleaned };
+}
+
+// Parse a code-fence or <script> body as JSON-LD; null if it isn't JSON-LD.
+function parseJsonLd(raw) {
+  const text = raw
+    .replace(/^\s*(`{3,}|~{3,})[^\n]*\n/, "") // inner fence opener
+    .replace(/\n\s*(`{3,}|~{3,})\s*$/, "") // inner fence closer
+    .replace(/<\/?script[^>]*>/g, "")
+    .replace(/ /g, " ");
+  try {
+    const data = JSON.parse(text);
+    return data && typeof data === "object" && data["@context"] ? data : null;
+  } catch {
+    return null;
+  }
 }
 
 // Reduce a post's JSON-LD (a single object or an @graph) to the Article
